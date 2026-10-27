@@ -93,6 +93,8 @@ struct Todo: Identifiable, Codable, Sendable {
 
     /// Only finished one-off to-dos may be archived; a recurring one would silently stop coming back.
     var canArchive: Bool { done && repeatRule == .none }
+    /// The archive shows every finished one-off to-do, explicitly archived or not.
+    var showsInArchive: Bool { archived || canArchive }
 
     enum CodingKeys: String, CodingKey { case id, title, priority, due, repeatRule, repeatDays, groupID, customPriorityID, extraReminder, done, archived, created }
     init(title: String, priority: Priority = .normal, due: Date? = nil, repeatRule: RepeatRule = .none, repeatDays: Set<Weekday> = [], groupID: UUID? = nil, customPriorityID: UUID? = nil, extraReminder: ReminderOffset = .none, done: Bool = false, created: Date = Date()) {
@@ -378,9 +380,9 @@ struct UndoStep: Identifiable {
         persist()
     }
     func clearArchive() {
-        guard writable, todos.contains(where: \.archived) else { return }
+        guard writable, todos.contains(where: \.showsInArchive) else { return }
         recordUndo("Archiv geleert")
-        todos.removeAll(where: \.archived)
+        todos.removeAll(where: \.showsInArchive)
         persist()
     }
     func exportData() throws -> Data {
