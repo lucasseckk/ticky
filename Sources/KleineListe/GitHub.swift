@@ -69,6 +69,61 @@ func nonEmptyLines(_ data: Data) -> [String] {
     String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline).map(String.init).filter { !$0.isEmpty }
 }
 
+struct PullRequest: Identifiable, Equatable, Sendable {
+    enum CI: Sendable { case none, pending, success, failure }
+    enum Category: CaseIterable, Sendable { case review, mine, other }
+
+    let repo: String
+    let number: Int
+    let title: String
+    let author: String
+    let created: Date
+    let isDraft: Bool
+    let url: URL
+    let reviewRequests: [String]
+    let ci: CI
+
+    var id: String { "\(repo)#\(number)" }
+    /// Merging is only offered when nothing is failing or still running.
+    var canMerge: Bool { !isDraft && (ci == .success || ci == .none) }
+
+    func category(for login: String?) -> Category {
+        guard let login else { return .other }
+        if reviewRequests.contains(login) { return .review }
+        return author == login ? .mine : .other
+    }
+
+    static let jsonFields = "number,title,author,createdAt,isDraft,url,reviewRequests,statusCheckRollup"
+
+    /// Parses `gh pr list --json` output.
+    static func parse(_ data: Data, repo: String) throws -> [PullRequest] {
+        struct Raw: Decodable {
+            struct Login: Decodable { let login: String? }
+            struct Request: Decodable { let login: String?; let slug: String?; let name: String? }
+            struct Check: Decodable { let status: String?; let conclusion: String?; let state: String? }
+            let number: Int, title: String, author: Login?, createdAt: Date, isDraft: Bool, url: URL
+            let reviewRequests: [Request]?, statusCheckRollup: [Check]?
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([Raw].self, from: data).map { raw in
+            PullRequest(repo: repo, number: raw.number, title: raw.title, author: raw.author?.login ?? "",
+                        created: raw.createdAt, isDraft: raw.isDraft, url: raw.url,
+                        reviewRequests: (raw.reviewRequests ?? []).compactMap { $0.login ?? $0.slug ?? $0.name },
+                        ci: ci(of: (raw.statusCheckRollup ?? []).map { ($0.status, $0.conclusion, $0.state) }))
+        }
+    }
+
+    /// Check runs report status/conclusion, legacy commit statuses report state.
+    static func ci(of checks: [(status: String?, conclusion: String?, state: String?)]) -> CI {
+        guard !checks.isEmpty else { return .none }
+        let failed: Set = ["FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"]
+        if checks.contains(where: { failed.contains($0.conclusion ?? "") || failed.contains($0.state ?? "") }) { return .failure }
+        if checks.contains(where: { ($0.status.map { $0 != "COMPLETED" } ?? false) || ["PENDING", "EXPECTED"].contains($0.state ?? "") }) { return .pending }
+        return .success
+    }
+}
+
 @MainActor final class DevStore: ObservableObject {
     enum Connection: Equatable {
         case unknown, connected(login: String), failed(GitHubError)
@@ -80,6 +135,9 @@ func nonEmptyLines(_ data: Data) -> [String] {
     @Published private(set) var lastUpdated: Date?
     /// nil means the default: every repository the user owns.
     @Published private(set) var chosenRepos: [String]?
+    @Published private(set) var pullRequests: [PullRequest] = []
+    /// Repositories whose pull requests could not be loaded in the last refresh.
+    @Published private(set) var failedRepos: [String] = []
 
     private let defaults: UserDefaults
     private let locate: () -> GitHubCLI?
@@ -117,9 +175,15 @@ func nonEmptyLines(_ data: Data) -> [String] {
         defaults.set(chosenRepos, forKey: "devRepos")
     }
 
-    func refreshIfStale(maxAge: TimeInterval = 300) async {
-        if let lastUpdated, Date().timeIntervalSince(lastUpdated) < maxAge, login != nil { return }
-        await refresh()
+    func pullRequests(in category: PullRequest.Category) -> [PullRequest] {
+        pullRequests.filter { selectedRepos.contains($0.repo) && $0.category(for: login) == category }
+    }
+
+    /// Merge commit, as agreed in #25; removes the pull request locally on success.
+    func merge(_ pr: PullRequest) async throws {
+        guard let cli = locate() else { throw GitHubError.missingCLI }
+        _ = try await cli.run(["pr", "merge", String(pr.number), "-R", pr.repo, "--merge"], timeout: 60)
+        pullRequests.removeAll { $0.id == pr.id }
     }
 
     func refresh() async {
@@ -133,11 +197,29 @@ func nonEmptyLines(_ data: Data) -> [String] {
             availableRepos = repos
             lastUpdated = Date()
             connection = .connected(login: login)
+            await loadPullRequests(cli)
             defaults.set(["login": login, "repos": repos, "updated": lastUpdated!], forKey: "devCache")
         } catch let error as GitHubError {
             connection = .failed(error)
         } catch {
             connection = .failed(.failed(error.localizedDescription))
         }
+    }
+
+    private func loadPullRequests(_ cli: GitHubCLI) async {
+        let repos = selectedRepos
+        let results = await withTaskGroup(of: (String, [PullRequest]?).self) { group in
+            for repo in repos {
+                group.addTask {
+                    let data = try? await cli.run(["pr", "list", "-R", repo, "--state", "open", "--limit", "50", "--json", PullRequest.jsonFields])
+                    return (repo, data.flatMap { try? PullRequest.parse($0, repo: repo) })
+                }
+            }
+            var collected: [(String, [PullRequest]?)] = []
+            for await result in group { collected.append(result) }
+            return collected
+        }
+        failedRepos = results.filter { $0.1 == nil }.map(\.0).sorted()
+        pullRequests = results.flatMap { $0.1 ?? [] }.sorted { $0.created > $1.created }
     }
 }

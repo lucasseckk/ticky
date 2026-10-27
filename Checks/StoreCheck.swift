@@ -136,6 +136,21 @@ import Foundation
         catch { precondition(error as? GitHubError == .failed("gh wurde mit Code 1 beendet.")) }
         precondition(GitHubError.classify(exitCode: 4, stderr: "") == .notLoggedIn)
         precondition(GitHubError.classify(exitCode: 1, stderr: "To get started with GitHub CLI, please run:  gh auth login") == .notLoggedIn)
+        let prJSON = Data("""
+        [{"author":{"login":"anna"},"createdAt":"2026-10-27T18:58:22Z","isDraft":false,"number":7,"title":"Fix","url":"https://github.com/a/b/pull/7",
+          "reviewRequests":[{"login":"lucas"},{"slug":"team"}],"statusCheckRollup":[{"status":"COMPLETED","conclusion":"SUCCESS"},{"state":"SUCCESS"}]},
+         {"author":{"login":"lucas"},"createdAt":"2026-10-26T10:00:00Z","isDraft":true,"number":8,"title":"WIP","url":"https://github.com/a/b/pull/8",
+          "reviewRequests":[],"statusCheckRollup":[]}]
+        """.utf8)
+        let prs = try PullRequest.parse(prJSON, repo: "a/b")
+        precondition(prs.map(\.id) == ["a/b#7", "a/b#8"])
+        precondition(prs[0].reviewRequests == ["lucas", "team"] && prs[0].ci == .success && prs[0].canMerge)
+        precondition(prs[1].ci == .none && !prs[1].canMerge)
+        precondition(prs[0].category(for: "lucas") == .review && prs[1].category(for: "lucas") == .mine && prs[0].category(for: "max") == .other)
+        precondition(PullRequest.ci(of: [("COMPLETED", "SUCCESS", nil), ("COMPLETED", "FAILURE", nil)]) == .failure)
+        precondition(PullRequest.ci(of: [("COMPLETED", "SKIPPED", nil), ("IN_PROGRESS", nil, nil)]) == .pending)
+        precondition(PullRequest.ci(of: [(nil, nil, "PENDING")]) == .pending)
+        precondition(PullRequest.ci(of: [(nil, nil, "ERROR")]) == .failure)
         let original = Data("unlesbare Daten".utf8)
         try original.write(to: file)
         let corrupt = Store(file: file)
@@ -143,6 +158,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Löschen, Schutz beschädigter Daten")
     }
 }
