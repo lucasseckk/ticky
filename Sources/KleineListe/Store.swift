@@ -153,6 +153,39 @@ enum DueFilter: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+enum DueBucket: Int, CaseIterable, Identifiable, Sendable {
+    case overdue, today, tomorrow, thisWeek, later, none, past
+    var id: Int { rawValue }
+    var label: String {
+        switch self {
+        case .overdue: return "Überfällig"
+        case .today: return "Heute"
+        case .tomorrow: return "Morgen"
+        case .thisWeek: return "Diese Woche"
+        case .later: return "Später"
+        case .none: return "Ohne Datum"
+        case .past: return "Vergangen"
+        }
+    }
+
+    /// Uses the calendar's local time zone; done to-dos are never overdue, only past.
+    init(_ todo: Todo, now: Date = Date(), calendar: Calendar = .current) {
+        guard let due = todo.due else { self = .none; return }
+        let sameDay = calendar.isDate(due, inSameDayAs: now)
+        if due < now, !(todo.done && sameDay) {
+            self = todo.done ? .past : .overdue
+        } else if sameDay {
+            self = .today
+        } else if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now), calendar.isDate(due, inSameDayAs: tomorrow) {
+            self = .tomorrow
+        } else if calendar.isDate(due, equalTo: now, toGranularity: .weekOfYear) {
+            self = .thisWeek
+        } else {
+            self = .later
+        }
+    }
+}
+
 struct TodoFilter: Equatable, Sendable {
     var query = ""
     var group: GroupFilter = .all

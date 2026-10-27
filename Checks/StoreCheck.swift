@@ -73,6 +73,23 @@ import Foundation
         undo.moveTodo(keep.id, to: nil)
         precondition(Store(file: file).undoStep == nil)
         undo.delete(keep)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        calendar.firstWeekday = 2
+        // Mittwoch, 28.10.2026, 12:00 Berliner Zeit
+        let noon = calendar.date(from: DateComponents(year: 2026, month: 10, day: 28, hour: 12))!
+        func bucket(_ hours: Double, done: Bool = false) -> DueBucket {
+            DueBucket(Todo(title: "x", due: noon.addingTimeInterval(hours * 3600), done: done), now: noon, calendar: calendar)
+        }
+        precondition(bucket(-1) == .overdue)
+        precondition(bucket(-1, done: true) == .today)
+        precondition(bucket(-30, done: true) == .past)
+        precondition(bucket(-30) == .overdue)
+        precondition(bucket(11) == .today)
+        precondition(bucket(13) == .tomorrow)
+        precondition(bucket(36) == .thisWeek)
+        precondition(bucket(24 * 5) == .later)
+        precondition(DueBucket(Todo(title: "x"), now: noon, calendar: calendar) == .none)
         let original = Data("unlesbare Daten".utf8)
         try original.write(to: file)
         let corrupt = Store(file: file)
@@ -80,6 +97,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Löschen, Schutz beschädigter Daten")
     }
 }
