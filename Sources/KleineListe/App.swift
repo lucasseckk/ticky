@@ -237,7 +237,7 @@ struct Panel: View {
         .animation(.easeOut(duration: 0.2), value: store.undoStep?.id)
         .padding(20)
         // Fixed list height: the menu bar window does not reliably grow, so the search bar takes space from the list instead.
-        .frame(width: 460, height: showSettings || draft != nil ? nil : 560, alignment: .top)
+        .frame(width: 460, height: draft != nil ? nil : 560, alignment: .top)
         .background(backgroundColor.opacity(0.18), in: RoundedRectangle(cornerRadius: 16))
         .opacity(panelVisible ? 1 : 0)
         .scaleEffect(panelVisible ? 1 : 0.96)
@@ -697,18 +697,6 @@ struct SettingsView: View {
     @State private var testResult: (text: String, success: Bool)?
     @State private var dataResult: (text: String, success: Bool)?
 
-    private var backgroundIsDark: Bool {
-        let cleaned = backgroundColorHex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var value: UInt64 = 0
-        Scanner(string: cleaned).scanHexInt64(&value)
-        let red = Double((value >> 16) & 0xFF) / 255
-        let green = Double((value >> 8) & 0xFF) / 255
-        let blue = Double(value & 0xFF) / 255
-        let brightness = 0.2126 * red + 0.7152 * green + 0.0722 * blue
-        return brightness < 0.5
-    }
-    private var settingsSurface: Color { backgroundIsDark ? .white : .black }
-    private var settingsText: Color { backgroundIsDark ? .black : .white }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -894,11 +882,7 @@ struct SettingsView: View {
                 }
             }
             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-            .foregroundStyle(settingsText)
-            // System controls must match the contrasting surface, not the system appearance.
-            .environment(\.colorScheme, backgroundIsDark ? .light : .dark)
-            .frame(maxWidth: .infinity, minHeight: 400, maxHeight: 400, alignment: .topLeading)
-            .background(settingsSurface, in: RoundedRectangle(cornerRadius: 10))
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -1019,8 +1003,8 @@ struct SettingsCard<Content: View>: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.foreground.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.foreground.opacity(0.18)))
+        .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.foreground.opacity(0.12)))
     }
 }
 
