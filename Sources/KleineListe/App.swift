@@ -27,7 +27,10 @@ struct Panel: View {
     @ObservedObject var store: Store
     @State private var panelVisible = false
     @State private var title = ""
-    @AppStorage("showDone") private var showDone = false
+    @State private var statusFilter = StatusFilter.open
+    @State private var filter = TodoFilter()
+    @State private var showSearch = false
+    @FocusState private var searchFocused: Bool
     @State private var showSettings = false
     @State private var draft: Todo?
     @State private var draftIsNew = false
@@ -46,11 +49,19 @@ struct Panel: View {
     private var mediumPriorityColor: Color { Color(hex: mediumPriorityColorHex) }
     private var lowPriorityColor: Color { Color(hex: lowPriorityColorHex) }
     private var items: [Todo] {
-        store.todos.filter { showDone || shouldShow($0) }.sorted {
+        store.todos.filter { filter.matches($0) && matchesStatus($0) }.sorted {
             if $0.done != $1.done { return !$0.done }
             if priorityLevel($0) != priorityLevel($1) { return priorityLevel($0) > priorityLevel($1) }
             if $0.due != $1.due { return ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
             return $0.created < $1.created
+        }
+    }
+    private var filterActive: Bool { filter.isActive || statusFilter != .open }
+    private func matchesStatus(_ todo: Todo) -> Bool {
+        switch statusFilter {
+        case .open: return shouldShow(todo)
+        case .done: return todo.done
+        case .all: return true
         }
     }
     private func shouldShow(_ todo: Todo) -> Bool {
@@ -86,6 +97,13 @@ struct Panel: View {
                     Text(store.count == 0 ? "Alles erledigt." : "\(store.count) To-Dos offen").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                Button(action: toggleSearch) {
+                    Image(systemName: "magnifyingglass").font(.title3)
+                        .foregroundStyle(showSearch ? Color.accentColor : Color.primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(showSearch ? "Suche schließen" : "Suche öffnen")
+                .help(showSearch ? "Suche schließen" : "To-Dos suchen und filtern")
                 Button { showSettings.toggle() } label: {
                     Image(systemName: "gearshape").font(.title3)
                 }
@@ -112,7 +130,7 @@ struct Panel: View {
                             }
                             .padding(12)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
                     }
                     .buttonStyle(.plain)
                     .frame(maxWidth: .infinity)
@@ -125,17 +143,18 @@ struct Panel: View {
             if let todo = draft {
                 Editor(todo: todo, isNew: draftIsNew, groups: store.groups, customPriorities: store.customPriorities, onSave: saveDraft, onCancel: { withAnimation(.easeOut(duration: 0.2)) { draft = nil } }).id(todo.id)
             } else {
+                if showSearch { filterBar }
                 ScrollView {
                     LazyVStack(spacing: 4) {
                         if items.isEmpty {
                             VStack(spacing: 10) {
-                                Image(systemName: "checkmark.seal").font(.system(size: 34))
-                                Text("Platz für deinen nächsten Plan.")
+                                Image(systemName: filterActive ? "magnifyingglass" : "checkmark.seal").font(.system(size: 34))
+                                Text(filterActive ? "Keine passenden To-Dos." : "Platz für deinen nächsten Plan.")
                             }.foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 40)
                         }
                         VStack(spacing: 4) {
                             ForEach(standardItems) { item in todoCard(item) }
-                            if standardItems.isEmpty {
+                            if standardItems.isEmpty && (draggingTodoID != nil || !filterActive) {
                                 Text("To-Dos hierher ziehen, um sie aus einer Gruppe zu lösen.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -148,11 +167,11 @@ struct Panel: View {
                         .background(GeometryReader { proxy in
                             Color.clear.preference(key: StandardFramePreferenceKey.self, value: proxy.frame(in: .named("todo-list")))
                         })
-                        ForEach(store.groups) { group in groupBlock(group) }
+                        ForEach(visibleGroups) { group in groupBlock(group) }
                     }
                 }
                 .coordinateSpace(name: "todo-list")
-                .frame(height: 380)
+                .frame(minHeight: 160, maxHeight: .infinity)
                 .onPreferenceChange(GroupFramePreferenceKey.self) { groupFrames = $0 }
                 .onPreferenceChange(StandardFramePreferenceKey.self) { standardFrame = $0 }
                 .overlay(alignment: .topLeading) {
@@ -163,15 +182,12 @@ struct Panel: View {
                             .allowsHitTesting(false)
                     }
                 }
-                HStack {
-                    Spacer()
-                    Toggle("Erledigt", isOn: $showDone).toggleStyle(.checkbox).font(.caption)
-                }
             }
             }
         }
         .padding(20)
-        .frame(width: 460)
+        // Fixed list height: the menu bar window does not reliably grow, so the search bar takes space from the list instead.
+        .frame(width: 460, height: showSettings || draft != nil ? nil : 560, alignment: .top)
         .background(backgroundColor.opacity(0.18), in: RoundedRectangle(cornerRadius: 16))
         .opacity(panelVisible ? 1 : 0)
         .scaleEffect(panelVisible ? 1 : 0.96)
@@ -183,6 +199,117 @@ struct Panel: View {
     private func openNewEditor() {
         draftIsNew = true
         withAnimation(.easeOut(duration: 0.2)) { draft = Todo(title: title) }
+    }
+    private func toggleSearch() {
+        withAnimation(.easeOut(duration: 0.2)) {
+            showSearch.toggle()
+            // Closed search must not leave invisible filters behind.
+            if !showSearch { resetFilter() }
+        }
+        searchFocused = showSearch
+    }
+    private var filterBar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                TextField("To-Dos suchen", text: $filter.query)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($searchFocused)
+                    .onExitCommand(perform: toggleSearch)
+                Menu {
+                    Picker("Status", selection: $statusFilter) {
+                        ForEach(StatusFilter.allCases) { Text($0.label).tag($0) }
+                    }
+                    Picker("Gruppe", selection: $filter.group) {
+                        Text("Alle").tag(GroupFilter.all)
+                        Text("Ohne Gruppe").tag(GroupFilter.ungrouped)
+                        ForEach(store.groups) { Text($0.name).tag(GroupFilter.group($0.id)) }
+                    }
+                    Picker("Priorität", selection: $filter.priority) {
+                        Text("Alle").tag(Optional<PriorityChoice>.none)
+                        ForEach(Priority.allCases.reversed()) { Text($0.label).tag(Optional(PriorityChoice.standard($0))) }
+                        ForEach(store.customPriorities) { Text($0.name).tag(Optional(PriorityChoice.custom($0.id))) }
+                    }
+                    Picker("Fälligkeit", selection: $filter.due) {
+                        ForEach(DueFilter.allCases) { Text($0.label).tag($0) }
+                    }
+                    Divider()
+                    Button("Filter zurücksetzen", action: resetFilter).disabled(!filterActive)
+                } label: {
+                    Image(systemName: filterActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .accessibilityLabel("Filter")
+                .help("To-Dos filtern")
+                if filterActive {
+                    Button(action: resetFilter) { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Suche und Filter zurücksetzen")
+                        .help("Suche und Filter zurücksetzen")
+                }
+            }
+            presetRow("Schnell") {
+                presetChip("Überfällig", "exclamationmark.circle", filter.due == .overdue) { filter.due = filter.due == .overdue ? .all : .overdue }
+                presetChip("Heute", "calendar", filter.due == .today) { filter.due = filter.due == .today ? .all : .today }
+                presetChip("Ohne Datum", "calendar.badge.minus", filter.due == DueFilter.none) { filter.due = filter.due == DueFilter.none ? .all : DueFilter.none }
+                presetChip("Erledigt", "checkmark.circle", statusFilter == .done) { statusFilter = statusFilter == .done ? .open : .done }
+            }
+            presetRow("Priorität") {
+                ForEach(Priority.allCases.reversed()) { priority in
+                    priorityChip(priority.label, .standard(priority))
+                }
+            }
+            presetRow("Eigene") {
+                ForEach(store.customPriorities) { priority in
+                    priorityChip(priority.name, .custom(priority.id))
+                }
+                if store.customPriorities.isEmpty {
+                    presetChip("Eigene Priorität anlegen", "plus", false) { showSettings = true }
+                }
+            }
+            presetRow("Gruppe") {
+                presetChip("Ohne Gruppe", "tray", filter.group == .ungrouped) { filter.group = filter.group == .ungrouped ? .all : .ungrouped }
+                ForEach(store.groups) { group in
+                    presetChip(group.name, "folder", filter.group == .group(group.id)) {
+                        filter.group = filter.group == .group(group.id) ? .all : .group(group.id)
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+    private func presetRow<Content: View>(_ label: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 8) {
+            Text(label).font(.caption.bold()).foregroundStyle(.secondary).frame(width: 56, alignment: .leading)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) { content() }
+            }
+        }
+    }
+    private func priorityChip(_ label: String, _ choice: PriorityChoice) -> some View {
+        presetChip(label, "flag", filter.priority == choice) { filter.priority = filter.priority == choice ? nil : choice }
+    }
+    private func presetChip(_ label: String, _ systemImage: String, _ isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(label, systemImage: systemImage)
+                .font(.caption)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(isOn ? Color.accentColor : Color.secondary.opacity(0.15), in: Capsule())
+                .foregroundStyle(isOn ? Color.white : Color.primary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+    private func resetFilter() {
+        filter = TodoFilter()
+        statusFilter = .open
+    }
+    private var visibleGroups: [TodoGroup] {
+        guard filterActive && draggingTodoID == nil else { return store.groups }
+        return store.groups.filter { !groupedItems(for: $0.id).isEmpty }
     }
     private var standardItems: [Todo] { items.filter { $0.groupID == nil } }
     private func groupedItems(for groupID: UUID) -> [Todo] { items.filter { $0.groupID == groupID } }
@@ -800,9 +927,4 @@ struct Editor: View {
             priorityChoice = todo.customPriorityID.map(PriorityChoice.custom) ?? .standard(todo.priority)
         }
     }
-}
-
-enum PriorityChoice: Hashable {
-    case standard(Priority)
-    case custom(UUID)
 }

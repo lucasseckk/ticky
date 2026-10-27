@@ -7,6 +7,7 @@ Native macOS-Menüleisten-App für To-dos. Die App verwendet SwiftUI, benötigt 
 - To-dos mit Priorität, Fälligkeit, Wiederholungen und optionalen Erinnerungen
 - Lokale macOS-Benachrichtigungen
 - Gruppen mit Notizen und individuellen Farben
+- Suche und kombinierbare Filter für Status, Gruppe, Priorität und Fälligkeit
 - Drag-and-drop in Gruppen, zwischen Gruppen und zurück in den normalen Bereich
 - Transparente Drag-Vorschau
 - Animierte Erstellung und Darstellung
