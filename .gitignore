@@ -1,0 +1,25 @@
+.build/
+dist/
+.swiftpm/
+.DS_Store
+
+# Local application data and credentials
+*.secret
+*.secrets
+*.env
+*.env.*
+!.env.example
+*.pem
+*.p12
+*.mobileprovision
+
+# Local editor, agent and OMX state
+.vscode/
+.omx/
+AGENTS.md
+
+# macOS metadata
+.AppleDouble
+.LSOverride
+Icon
+._*

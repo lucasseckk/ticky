@@ -1,0 +1,825 @@
+import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
+
+@main struct ToDoListApp: App {
+    @NSApplicationDelegateAdaptor(NotificationAppDelegate.self) private var appDelegate
+    @StateObject private var store = Store()
+    init() { migratePreviousSettings() }
+    var body: some Scene {
+        MenuBarExtra {
+            Panel(store: store)
+        } label: {
+            Image(systemName: store.count == 0 ? "checkmark.circle" : "checklist")
+                .accessibilityLabel("To-Do List: \(store.count) offene To-Dos")
+        }.menuBarExtraStyle(.window)
+    }
+}
+
+private func migratePreviousSettings() {
+    let defaults = UserDefaults.standard
+    guard !defaults.bool(forKey: "didMigrateFromKleineListe") else { return }
+    let oldValues = defaults.persistentDomain(forName: "de.lucasseck.kleineliste") ?? [:]
+    for (key, value) in oldValues where defaults.object(forKey: key) == nil { defaults.set(value, forKey: key) }
+    defaults.set(true, forKey: "didMigrateFromKleineListe")
+}
+
+struct Panel: View {
+    @ObservedObject var store: Store
+    @State private var panelVisible = false
+    @State private var title = ""
+    @AppStorage("showDone") private var showDone = false
+    @State private var showSettings = false
+    @State private var draft: Todo?
+    @State private var draftIsNew = false
+    @State private var hoveredGroupID: UUID?
+    @State private var groupFrames: [UUID: CGRect] = [:]
+    @State private var standardFrame = CGRect.zero
+    @State private var standardDropTargeted = false
+    @State private var draggingTodoID: UUID?
+    @State private var dragLocation = CGPoint.zero
+    @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
+    @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
+    @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
+    @AppStorage("lowPriorityColor") private var lowPriorityColorHex = "#94BD80"
+    private var backgroundColor: Color { Color(hex: backgroundColorHex) }
+    private var highPriorityColor: Color { Color(hex: highPriorityColorHex) }
+    private var mediumPriorityColor: Color { Color(hex: mediumPriorityColorHex) }
+    private var lowPriorityColor: Color { Color(hex: lowPriorityColorHex) }
+    private var items: [Todo] {
+        store.todos.filter { showDone || shouldShow($0) }.sorted {
+            if $0.done != $1.done { return !$0.done }
+            if priorityLevel($0) != priorityLevel($1) { return priorityLevel($0) > priorityLevel($1) }
+            if $0.due != $1.due { return ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
+            return $0.created < $1.created
+        }
+    }
+    private func shouldShow(_ todo: Todo) -> Bool {
+        guard !todo.done else {
+            guard let groupID = todo.groupID else { return false }
+            return !groupIsComplete(groupID)
+        }
+        return true
+    }
+    private func groupIsComplete(_ groupID: UUID) -> Bool {
+        let members = store.todos.filter { $0.groupID == groupID }
+        guard !members.isEmpty else { return true }
+        if members.contains(where: { $0.repeatRule != .none }) { return false }
+        return members.allSatisfy(\.done)
+    }
+    private func priorityLevel(_ todo: Todo) -> Int {
+        if let customID = todo.customPriorityID, let custom = store.customPriorities.first(where: { $0.id == customID }) { return custom.threatLevel + 2 }
+        return todo.priority.rawValue
+    }
+    private func cardColor(for todo: Todo) -> Color {
+        if let customID = todo.customPriorityID, let custom = store.customPriorities.first(where: { $0.id == customID }) { return Color(hex: custom.colorHex) }
+        return todo.priority.cardColor(high: highPriorityColor, medium: mediumPriorityColor, low: lowPriorityColor)
+    }
+    private func borderColor(for todo: Todo) -> Color {
+        if let customID = todo.customPriorityID, let custom = store.customPriorities.first(where: { $0.id == customID }) { return Color(hex: custom.colorHex).opacity(0.72) }
+        return todo.priority.borderColor(high: highPriorityColor, medium: mediumPriorityColor, low: lowPriorityColor)
+    }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("To-Do List").font(.title2.bold())
+                    Text(store.count == 0 ? "Alles erledigt." : "\(store.count) To-Dos offen").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { showSettings.toggle() } label: {
+                    Image(systemName: "gearshape").font(.title3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Einstellungen")
+                .help("Einstellungen öffnen")
+            }
+            if showSettings {
+                SettingsView(store: store, onClose: { showSettings = false })
+            } else {
+            if draft == nil {
+                HStack {
+                    Button(action: openNewEditor) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(.quaternary.opacity(0.5))
+                            HStack {
+                                Text(title.isEmpty ? "Was steht an?" : title)
+                                    .foregroundStyle(title.isEmpty ? .secondary : .primary)
+                                Spacer()
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                            .padding(12)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(RoundedRectangle(cornerRadius: 10))
+                    .accessibilityLabel("Neues To-Do anlegen")
+                }
+                .padding(.horizontal, 12)
+            }
+            if let error = store.error { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
+            if let todo = draft {
+                Editor(todo: todo, isNew: draftIsNew, groups: store.groups, customPriorities: store.customPriorities, onSave: saveDraft, onCancel: { withAnimation(.easeOut(duration: 0.2)) { draft = nil } }).id(todo.id)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        if items.isEmpty {
+                            VStack(spacing: 10) {
+                                Image(systemName: "checkmark.seal").font(.system(size: 34))
+                                Text("Platz für deinen nächsten Plan.")
+                            }.foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 40)
+                        }
+                        VStack(spacing: 4) {
+                            ForEach(standardItems) { item in todoCard(item) }
+                            if standardItems.isEmpty {
+                                Text("To-Dos hierher ziehen, um sie aus einer Gruppe zu lösen.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, minHeight: 68)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                        .background(GeometryReader { proxy in
+                            Color.clear.preference(key: StandardFramePreferenceKey.self, value: proxy.frame(in: .named("todo-list")))
+                        })
+                        .onDrop(of: [UTType.utf8PlainText, UTType.plainText, UTType.text], isTargeted: $standardDropTargeted) { providers in
+                            moveDroppedTodo(providers, to: nil)
+                        }
+                        ForEach(store.groups) { group in groupBlock(group) }
+                    }
+                }
+                .coordinateSpace(name: "todo-list")
+                .frame(height: 380)
+                .onPreferenceChange(GroupFramePreferenceKey.self) { groupFrames = $0 }
+                .onPreferenceChange(StandardFramePreferenceKey.self) { standardFrame = $0 }
+                .overlay(alignment: .topLeading) {
+                    if let draggingTodoID,
+                       let draggedTodo = store.todos.first(where: { $0.id == draggingTodoID }) {
+                        todoDragPreview(draggedTodo)
+                            .position(x: dragLocation.x + 130, y: dragLocation.y + 34)
+                            .allowsHitTesting(false)
+                    }
+                }
+                HStack {
+                    Spacer()
+                    Toggle("Erledigt", isOn: $showDone).toggleStyle(.checkbox).font(.caption)
+                }
+            }
+            }
+        }
+        .padding(20)
+        .frame(width: 460)
+        .background(backgroundColor.opacity(0.18), in: RoundedRectangle(cornerRadius: 16))
+        .opacity(panelVisible ? 1 : 0)
+        .scaleEffect(panelVisible ? 1 : 0.96)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.2)) { panelVisible = true }
+            rescheduleNotifications()
+        }
+    }
+    private func openNewEditor() {
+        draftIsNew = true
+        withAnimation(.easeOut(duration: 0.2)) { draft = Todo(title: title) }
+    }
+    private var standardItems: [Todo] { items.filter { $0.groupID == nil } }
+    private func groupedItems(for groupID: UUID) -> [Todo] { items.filter { $0.groupID == groupID } }
+    @ViewBuilder private func groupBlock(_ group: TodoGroup) -> some View {
+        let groupItems = groupedItems(for: group.id)
+        VStack(alignment: .leading, spacing: 10) {
+            Text(group.name).font(.title3.bold()).frame(maxWidth: .infinity, alignment: .leading)
+            Text("Notizen").font(.caption.bold()).foregroundStyle(.secondary)
+            TextEditor(text: groupNotesBinding(for: group))
+                .frame(minHeight: 58, maxHeight: 84)
+                .padding(4)
+                .background(.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
+            ForEach(groupItems) { item in todoCard(item) }
+            if groupItems.isEmpty {
+                Text("Noch keine To-Dos in dieser Gruppe.").font(.caption).foregroundStyle(.secondary).padding(.vertical, 6)
+            }
+        }
+        .padding(14)
+        .background(Color(hex: group.colorHex).opacity(hoveredGroupID == group.id ? 0.22 : 0.10), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: group.colorHex).opacity(0.55), lineWidth: 2))
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: GroupFramePreferenceKey.self, value: [group.id: proxy.frame(in: .named("todo-list"))])
+        })
+        .onDrop(of: [UTType.utf8PlainText, UTType.plainText, UTType.text], isTargeted: Binding(
+            get: { hoveredGroupID == group.id },
+            set: { targeted in hoveredGroupID = targeted ? group.id : (hoveredGroupID == group.id ? nil : hoveredGroupID) }
+        )) { providers in
+            moveDroppedTodo(providers, to: group.id)
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+    private func groupNotesBinding(for group: TodoGroup) -> Binding<String> {
+        Binding(
+            get: { store.groups.first(where: { $0.id == group.id })?.notes ?? "" },
+            set: { notes in
+                var updated = group
+                updated.notes = notes
+                store.updateGroup(updated)
+            }
+        )
+    }
+    @ViewBuilder private func todoCard(_ item: Todo) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Button { withAnimation { store.toggle(item) }; rescheduleNotifications() } label: {
+                Image(systemName: item.done ? "checkmark.circle.fill" : "circle").font(.title3)
+                    .foregroundStyle(item.done ? Color.green : Color.secondary)
+            }.buttonStyle(.plain).accessibilityLabel(item.done ? "Wieder öffnen: \(item.title)" : "Erledigen: \(item.title)")
+            VStack(alignment: .leading, spacing: 5) {
+                Text(item.title).strikethrough(item.done).foregroundStyle(item.done ? .secondary : .primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let due = item.due {
+                    Text(due, format: .dateTime.day().month().hour().minute())
+                        .font(.caption)
+                        .foregroundStyle(!item.done && due < Date() ? Color.red : Color.secondary)
+                }
+            }
+            Spacer(minLength: 0)
+            Menu {
+                Button("Bearbeiten") { draftIsNew = false; draft = item }
+                Divider()
+                Button("Löschen", role: .destructive) { withAnimation { store.delete(item) }; rescheduleNotifications() }
+            } label: { Image(systemName: "ellipsis") }
+            .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Optionen für \(item.title)")
+        }
+        .padding(14)
+        .frame(minHeight: 68)
+        .background(cardColor(for: item), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor(for: item), lineWidth: 1.5))
+        .opacity(draggingTodoID == item.id ? 0.28 : (item.done ? 0.6 : 1))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .simultaneousGesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("todo-list"))
+            .onChanged { value in
+                guard abs(value.translation.width) > 8 || abs(value.translation.height) > 8 else { return }
+                draggingTodoID = item.id
+                dragLocation = value.location
+                hoveredGroupID = groupFrames.first(where: { $0.value.contains(value.location) })?.key
+            }
+            .onEnded { value in
+                guard draggingTodoID == item.id else { return }
+                let groupID = groupFrames.first(where: { $0.value.contains(value.location) })?.key
+                let isStandardDrop = standardFrame.contains(value.location)
+                if let groupID {
+                    withAnimation { store.moveTodo(item.id, to: groupID) }
+                    rescheduleNotifications()
+                } else if isStandardDrop {
+                    withAnimation { store.moveTodo(item.id, to: nil) }
+                    rescheduleNotifications()
+                }
+                draggingTodoID = nil
+                hoveredGroupID = nil
+            })
+        .onDrag { NSItemProvider(object: NSString(string: item.id.uuidString)) } preview: { todoDragPreview(item) }
+        .transition(.asymmetric(insertion: .scale(scale: 0.55, anchor: .top).combined(with: .move(edge: .top)).combined(with: .opacity), removal: .opacity))
+    }
+    private func moveDroppedTodo(_ providers: [NSItemProvider], to groupID: UUID?) -> Bool {
+        guard let provider = providers.first else { return false }
+        provider.loadObject(ofClass: NSString.self) { object, _ in
+            guard let idString = (object as? NSString)?.description, let id = UUID(uuidString: idString) else { return }
+            DispatchQueue.main.async {
+                withAnimation { store.moveTodo(id, to: groupID) }
+                hoveredGroupID = nil
+                rescheduleNotifications()
+            }
+        }
+        return true
+    }
+    @ViewBuilder private func todoDragPreview(_ item: Todo) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: item.done ? "checkmark.circle.fill" : "circle")
+            Text(item.title).lineLimit(1)
+        }
+        .font(.body)
+        .foregroundStyle(.primary)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frame(width: 260, alignment: .leading)
+        .background(cardColor(for: item).opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor(for: item), lineWidth: 1.5))
+        .opacity(0.62)
+        .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+    }
+    private func add() {
+        guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        saveDraft(Todo(title: title))
+    }
+    private func saveDraft(_ todo: Todo) {
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.62)) {
+            store.save(todo)
+            title = ""
+            draft = nil
+        }
+        rescheduleNotifications()
+    }
+    private func rescheduleNotifications() {
+        NotificationManager.shared.reschedule(todos: store.todos, customPriorities: store.customPriorities)
+    }
+}
+
+private struct GroupFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [UUID: CGRect] = [:]
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
+private struct StandardFramePreferenceKey: PreferenceKey {
+    static let defaultValue = CGRect.zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
+}
+
+struct SettingsView: View {
+    @ObservedObject var store: Store
+    let onClose: () -> Void
+    @State private var selectedTab = 0
+    @State private var selectedCustomPriorityID: UUID?
+    @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
+    @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
+    @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
+    @AppStorage("lowPriorityColor") private var lowPriorityColorHex = "#94BD80"
+    @AppStorage("defaultBackgroundColor") private var defaultBackgroundHex = "#FF0000"
+    @AppStorage("defaultHighPriorityColor") private var defaultHighHex = "#C24033"
+    @AppStorage("defaultMediumPriorityColor") private var defaultMediumHex = "#E0A63D"
+    @AppStorage("defaultLowPriorityColor") private var defaultLowHex = "#94BD80"
+    @AppStorage("notificationsEnabled") private var notificationsEnabled = false
+    @AppStorage("notificationSound") private var notificationSound = true
+    @AppStorage("animatedNotificationPopup") private var animatedNotificationPopup = true
+    @AppStorage("highPriorityLeadMinutes") private var highPriorityLeadMinutes = 30
+    @AppStorage("mediumPriorityLeadMinutes") private var mediumPriorityLeadMinutes = 120
+    @AppStorage("lowPriorityReminderHour") private var lowPriorityReminderHour = 9
+    @State private var notificationError: String?
+    @State private var notificationPermissionDenied = false
+
+    private var backgroundIsDark: Bool {
+        let cleaned = backgroundColorHex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var value: UInt64 = 0
+        Scanner(string: cleaned).scanHexInt64(&value)
+        let red = Double((value >> 16) & 0xFF) / 255
+        let green = Double((value >> 8) & 0xFF) / 255
+        let blue = Double(value & 0xFF) / 255
+        let brightness = 0.2126 * red + 0.7152 * green + 0.0722 * blue
+        return brightness < 0.5
+    }
+    private var settingsSurface: Color { backgroundIsDark ? .white : .black }
+    private var settingsText: Color { backgroundIsDark ? .black : .white }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Button(action: onClose) {
+                    Image(systemName: "arrow.left")
+                }
+                .buttonStyle(.plain)
+                .font(.title2)
+                .frame(width: 36, height: 36)
+                .accessibilityLabel("Zurück zur To-Do-Liste")
+                Text("Einstellungen").font(.headline)
+            }
+            Picker("Bereich", selection: $selectedTab) {
+                Text("Allgemein").tag(0)
+                Text("Darstellung").tag(1)
+                Text("Benachrichtigungen").tag(2)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            Group {
+                if selectedTab == 0 {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("To-Do-Gruppen").font(.headline)
+                            ForEach(store.groups) { group in
+                                HStack {
+                                    Label(group.name, systemImage: "folder")
+                                    Spacer()
+                                    Button { store.deleteGroup(group) } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(.red)
+                                    .accessibilityLabel("Gruppe \(group.name) löschen")
+                                }
+                            }
+                            HStack {
+                                TextField("Neue Gruppe", text: $newGroupName)
+                                    .textFieldStyle(.roundedBorder)
+                                Button("Hinzufügen") {
+                                    store.createGroup(name: newGroupName)
+                                    newGroupName = ""
+                                }
+                                .disabled(newGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            }
+                            Divider()
+                            Text("Eigene Prioritäten").font(.headline)
+                            ForEach(store.customPriorities) { priority in
+                                HStack {
+                                    Text(priority.name)
+                                    Spacer()
+                                    Text("Threat-Level \(priority.threatLevel)").font(.caption).foregroundStyle(.secondary)
+                                    Button { store.deleteCustomPriority(priority) } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(.red)
+                                    .accessibilityLabel("Custom-Priorität \(priority.name) löschen")
+                                }
+                            }
+                            HStack {
+                                TextField("Neue Priorität", text: $newPriorityName)
+                                    .textFieldStyle(.roundedBorder)
+                                Picker("Threat-Level", selection: $newPriorityThreatLevel) {
+                                    ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
+                                }
+                                .frame(width: 120)
+                                Button("Hinzufügen") {
+                                    store.createCustomPriority(name: newPriorityName, threatLevel: newPriorityThreatLevel)
+                                    newPriorityName = ""
+                                }
+                                .disabled(newPriorityName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                            }
+                            Spacer(minLength: 80)
+                        }
+                        .padding(14)
+                    }
+                } else if selectedTab == 1 {
+                    ScrollView(.vertical) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Hintergrund").font(.headline)
+                            ColorSettingRow(label: "Farbe", hex: $backgroundColorHex)
+                            Divider()
+                            Text("Prioritätsfarben").font(.headline)
+                            ColorSettingRow(label: "Hoch", hex: $highPriorityColorHex)
+                            ColorSettingRow(label: "Mittel", hex: $mediumPriorityColorHex)
+                            ColorSettingRow(label: "Niedrig", hex: $lowPriorityColorHex)
+                            Divider()
+                            Text("Custom Prioritäten").font(.headline)
+                            Picker("Custom Prioritäten", selection: $selectedCustomPriorityID) {
+                                Text("Keine Auswahl").tag(Optional<UUID>.none)
+                                ForEach(store.customPriorities) { priority in
+                                    Text(priority.name).tag(Optional(priority.id))
+                                }
+                            }
+                            if let selectedCustomPriorityID,
+                               store.customPriorities.contains(where: { $0.id == selectedCustomPriorityID }) {
+                                ColorSettingRow(label: "Farbe", hex: customPriorityColorBinding(for: selectedCustomPriorityID))
+                            }
+                            Divider()
+                            Text("Gruppen").font(.headline)
+                            ForEach(store.groups) { group in
+                                ColorSettingRow(label: group.name, hex: groupColorBinding(for: group.id))
+                            }
+                            if store.groups.isEmpty {
+                                Text("Lege zuerst unter Allgemein eine Gruppe an.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Divider()
+                            Text("Standardfarben").font(.headline)
+                            Text("Diese Farben werden beim Zurücksetzen verwendet.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            ColorSettingRow(label: "Hintergrund", hex: $defaultBackgroundHex)
+                            ColorSettingRow(label: "Hoch", hex: $defaultHighHex)
+                            ColorSettingRow(label: "Mittel", hex: $defaultMediumHex)
+                            ColorSettingRow(label: "Niedrig", hex: $defaultLowHex)
+                            Button("Auf Standard zurücksetzen") {
+                                backgroundColorHex = defaultBackgroundHex
+                                highPriorityColorHex = defaultHighHex
+                                mediumPriorityColorHex = defaultMediumHex
+                                lowPriorityColorHex = defaultLowHex
+                            }
+                        }
+                        .padding(14)
+                    }
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 14) {
+                            Text("Benachrichtigungen").font(.headline)
+                            Toggle("System-Push und Banner", isOn: $notificationsEnabled)
+                                .onChange(of: notificationsEnabled) { _, enabled in
+                                    if enabled {
+                                        NotificationManager.shared.requestAuthorization { granted in
+                                            DispatchQueue.main.async {
+                                                notificationsEnabled = granted
+                                                notificationPermissionDenied = !granted
+                                                notificationError = granted ? nil : "macOS hat die Benachrichtigungsberechtigung nicht erteilt."
+                                                rescheduleNotifications()
+                                            }
+                                        }
+                                    } else {
+                                        rescheduleNotifications()
+                                    }
+                                }
+                            Toggle("Ton abspielen", isOn: $notificationSound)
+                            Toggle("Animiertes Pop-up beim Öffnen", isOn: $animatedNotificationPopup)
+                            Divider()
+                            Text("Automatische Erinnerungen").font(.headline)
+                            Picker("Hohe Priorität", selection: $highPriorityLeadMinutes) {
+                                reminderLeadOptions
+                            }
+                            Picker("Mittlere Priorität", selection: $mediumPriorityLeadMinutes) {
+                                reminderLeadOptions
+                            }
+                            Picker("Niedrige Priorität täglich", selection: $lowPriorityReminderHour) {
+                                ForEach(6...22, id: \.self) { hour in Text(String(format: "%02d:00", hour)).tag(hour) }
+                            }
+                            Text("Threat-Level 4–5 folgt Hoch, 2–3 Mittel und 1 Niedrig.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Button("Testbenachrichtigung senden") {
+                                notificationError = "Testbenachrichtigung wird gesendet …"
+                                NotificationManager.shared.sendTestNotification { error in
+                                    DispatchQueue.main.async {
+                                        notificationError = error ?? "Testbenachrichtigung wurde eingeplant."
+                                    }
+                                }
+                            }
+                            if notificationPermissionDenied {
+                                Button("Mitteilungen in Systemeinstellungen öffnen") {
+                                    guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings") else { return }
+                                    NSWorkspace.shared.open(url)
+                                }
+                            }
+                            if let notificationError {
+                                Text(notificationError)
+                                    .font(.caption)
+                                    .foregroundStyle(notificationError.contains("wurde") ? .green : .secondary)
+                            }
+                        }
+                        .padding(14)
+                        .onChange(of: notificationSound) { _, _ in rescheduleNotifications() }
+                        .onChange(of: highPriorityLeadMinutes) { _, _ in rescheduleNotifications() }
+                        .onChange(of: mediumPriorityLeadMinutes) { _, _ in rescheduleNotifications() }
+                        .onChange(of: lowPriorityReminderHour) { _, _ in rescheduleNotifications() }
+                        .onAppear { syncNotificationPermission() }
+                    }
+                }
+            }
+            .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
+            .foregroundStyle(settingsText)
+            .frame(maxWidth: .infinity, minHeight: 320, maxHeight: 320, alignment: .topLeading)
+            .background(settingsSurface, in: RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
+    @State private var newGroupName = ""
+    @State private var newPriorityName = ""
+    @State private var newPriorityThreatLevel = 3
+
+    private func customPriorityColorBinding(for id: UUID) -> Binding<String> {
+        Binding(
+            get: { store.customPriorities.first(where: { $0.id == id })?.colorHex ?? "#94BD80" },
+            set: { newColor in
+                guard var priority = store.customPriorities.first(where: { $0.id == id }) else { return }
+                priority.colorHex = newColor
+                store.updateCustomPriority(priority)
+            }
+        )
+    }
+
+    private func groupColorBinding(for id: UUID) -> Binding<String> {
+        Binding(
+            get: { store.groups.first(where: { $0.id == id })?.colorHex ?? "#6C5CE7" },
+            set: { newColor in
+                guard var group = store.groups.first(where: { $0.id == id }) else { return }
+                group.colorHex = newColor
+                store.updateGroup(group)
+            }
+        )
+    }
+
+    @ViewBuilder private var reminderLeadOptions: some View {
+        Text("5 Minuten vorher").tag(5)
+        Text("15 Minuten vorher").tag(15)
+        Text("30 Minuten vorher").tag(30)
+        Text("1 Stunde vorher").tag(60)
+        Text("2 Stunden vorher").tag(120)
+        Text("1 Tag vorher").tag(1440)
+    }
+
+    private func rescheduleNotifications() {
+        NotificationManager.shared.reschedule(todos: store.todos, customPriorities: store.customPriorities)
+    }
+
+    private func syncNotificationPermission() {
+        guard notificationsEnabled else { return }
+        NotificationManager.shared.authorizationStatus { status in
+            if status == .denied {
+                DispatchQueue.main.async {
+                    notificationsEnabled = false
+                    notificationPermissionDenied = true
+                    notificationError = "macOS blockiert Benachrichtigungen für To-Do List."
+                }
+            }
+        }
+    }
+
+}
+
+struct ColorSettingRow: View {
+    let label: String
+    @Binding var hex: String
+    @State private var showingPicker = false
+
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer()
+            Button {
+                showingPicker = true
+            } label: {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(hex: hex))
+                    .frame(width: 58, height: 28)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.primary.opacity(0.35), lineWidth: 1)
+                    }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Farbe für \(label) ändern")
+            .popover(isPresented: $showingPicker, arrowEdge: .trailing) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Farbe auswählen").font(.headline)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 30))], spacing: 8) {
+                        ForEach(Self.palette, id: \.self) { colorHex in
+                            Button {
+                                hex = colorHex
+                                showingPicker = false
+                            } label: {
+                                Circle()
+                                    .fill(Color(hex: colorHex))
+                                    .frame(width: 30, height: 30)
+                                    .overlay {
+                                        Circle().stroke(Color.primary.opacity(hex == colorHex ? 0.9 : 0.25), lineWidth: hex == colorHex ? 3 : 1)
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Farbe \(colorHex)")
+                        }
+                    }
+                }
+                .padding(16)
+                .foregroundStyle(.white)
+                .background(Color(white: 0.22), in: RoundedRectangle(cornerRadius: 14))
+            }
+        }
+    }
+
+    private static let palette = [
+        "#FFFFFF", "#F2F2F2", "#D9D9D9", "#808080", "#333333", "#000000",
+        "#FF0000", "#C24033", "#FF7A59", "#FFB000", "#E0A63D", "#FFE066",
+        "#94BD80", "#34A853", "#00A878", "#5BC0EB", "#2F80ED", "#6C5CE7",
+        "#B36BCE", "#F29BB2", "#8B5E3C"
+    ]
+}
+
+extension Color {
+    init(hex: String) {
+        let cleaned = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var value: UInt64 = 0
+        Scanner(string: cleaned).scanHexInt64(&value)
+        let red = Double((value >> 16) & 0xFF) / 255
+        let green = Double((value >> 8) & 0xFF) / 255
+        let blue = Double(value & 0xFF) / 255
+        self.init(red: red, green: green, blue: blue)
+    }
+
+    var hexString: String {
+        let color = NSColor(self).usingColorSpace(.sRGB) ?? .black
+        let red = Int(round(color.redComponent * 255))
+        let green = Int(round(color.greenComponent * 255))
+        let blue = Int(round(color.blueComponent * 255))
+        return String(format: "#%02X%02X%02X", red, green, blue)
+    }
+}
+
+private extension Priority {
+    func cardColor(high: Color, medium: Color, low: Color) -> Color {
+        switch self {
+        case .high: return high
+        case .normal: return medium
+        case .low: return low
+        }
+    }
+
+    func borderColor(high: Color, medium: Color, low: Color) -> Color {
+        switch self {
+        case .high: return high.opacity(0.72)
+        case .normal: return medium.opacity(0.72)
+        case .low: return low.opacity(0.72)
+        }
+    }
+}
+
+struct Editor: View {
+    @State var todo: Todo
+    let isNew: Bool
+    let groups: [TodoGroup]
+    let customPriorities: [CustomPriority]
+    @State private var priorityChoice: PriorityChoice = .standard(.normal)
+    @State private var hasDue = false
+    @State private var date = Date().addingTimeInterval(3600)
+    let onSave: (Todo) -> Void
+    let onCancel: () -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Button(action: onCancel) {
+                    Image(systemName: "arrow.left")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Zurück")
+                .help("Neues To-Do abbrechen")
+                Text(isNew ? "Neues To-Do" : "To-Do bearbeiten").font(.headline)
+            }
+            TextField("Titel", text: $todo.title).textFieldStyle(.roundedBorder)
+            Picker("Priorität", selection: $priorityChoice) {
+                Section("Standard") {
+                    ForEach(Priority.allCases) { priority in
+                        Text(priority.label).tag(PriorityChoice.standard(priority))
+                    }
+                }
+                if !customPriorities.isEmpty {
+                    Section("Custom") {
+                        ForEach(customPriorities) { priority in
+                            Text(priority.name).tag(PriorityChoice.custom(priority.id))
+                        }
+                    }
+                }
+            }
+            Picker("Gruppe", selection: Binding<UUID?>(get: { todo.groupID }, set: { todo.groupID = $0 })) {
+                Text("Keine Gruppe").tag(Optional<UUID>.none)
+                ForEach(groups) { group in
+                    Text(group.name).tag(Optional(group.id))
+                }
+            }
+            Toggle("Ablaufdatum", isOn: $hasDue)
+            if hasDue { DatePicker("Datum", selection: $date).labelsHidden() }
+            if hasDue {
+                Picker("Extra-Erinnerung", selection: $todo.extraReminder) {
+                    ForEach(ReminderOffset.allCases) { reminder in
+                        Text(reminder.label).tag(reminder)
+                    }
+                }
+            }
+            Picker("Wiederholung", selection: $todo.repeatRule) {
+                ForEach(RepeatRule.allCases) { Text($0.label).tag($0) }
+            }
+            if todo.repeatRule == .custom {
+                HStack(spacing: 6) {
+                    ForEach(Weekday.allCases) { day in
+                        Button(day.shortLabel) {
+                            if todo.repeatDays.contains(day) {
+                                todo.repeatDays.remove(day)
+                            } else {
+                                todo.repeatDays.insert(day)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: 34, height: 28)
+                        .background(todo.repeatDays.contains(day) ? Color.accentColor : Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
+                        .foregroundStyle(todo.repeatDays.contains(day) ? .white : .primary)
+                        .accessibilityLabel("\(day.shortLabel) \(todo.repeatDays.contains(day) ? "ausgewählt" : "nicht ausgewählt")")
+                    }
+                }
+            }
+            HStack {
+                Button("Abbrechen", action: onCancel)
+                Spacer()
+                Button("Speichern") {
+                    todo.due = hasDue ? date : nil
+                    switch priorityChoice {
+                    case .standard(let priority):
+                        todo.priority = priority
+                        todo.customPriorityID = nil
+                    case .custom(let id):
+                        todo.customPriorityID = id
+                    }
+                    onSave(todo)
+                }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(todo.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(12)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .onAppear {
+            hasDue = todo.due != nil
+            date = todo.due ?? Date().addingTimeInterval(3600)
+            priorityChoice = todo.customPriorityID.map(PriorityChoice.custom) ?? .standard(todo.priority)
+        }
+    }
+}
+
+enum PriorityChoice: Hashable {
+    case standard(Priority)
+    case custom(UUID)
+}

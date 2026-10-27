@@ -1,0 +1,215 @@
+import SwiftUI
+import AppKit
+
+enum Priority: Int, Codable, CaseIterable, Identifiable, Sendable {
+    case low, normal, high
+    var id: Int { rawValue }
+    var label: String { ["Niedrig", "Mittel", "Hoch"][rawValue] }
+}
+
+enum RepeatRule: String, Codable, CaseIterable, Identifiable, Sendable {
+    case none, daily, weekly, monthly, custom
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .none: return "Nie"
+        case .daily: return "Täglich"
+        case .weekly: return "Wöchentlich"
+        case .monthly: return "Monatlich"
+        case .custom: return "Individuelle Tage"
+        }
+    }
+}
+
+enum Weekday: Int, Codable, CaseIterable, Hashable, Identifiable, Sendable {
+    case monday = 2, tuesday, wednesday, thursday, friday, saturday, sunday
+    var id: Int { rawValue }
+    var shortLabel: String { ["", "", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][rawValue] }
+}
+
+enum ReminderOffset: Int, Codable, CaseIterable, Identifiable, Sendable {
+    case none = 0
+    case tenMinutes = 10
+    case thirtyMinutes = 30
+    case oneHour = 60
+    case oneDay = 1440
+    case twoDays = 2880
+
+    var id: Int { rawValue }
+    var label: String {
+        switch self {
+        case .none: return "Keine Extra-Erinnerung"
+        case .tenMinutes: return "10 Minuten vorher"
+        case .thirtyMinutes: return "30 Minuten vorher"
+        case .oneHour: return "1 Stunde vorher"
+        case .oneDay: return "1 Tag vorher"
+        case .twoDays: return "2 Tage vorher"
+        }
+    }
+}
+
+struct TodoGroup: Identifiable, Codable, Hashable, Sendable {
+    var id = UUID()
+    var name: String
+    var notes = ""
+    var colorHex = "#6C5CE7"
+
+    enum CodingKeys: String, CodingKey { case id, name, notes, colorHex }
+    init(id: UUID = UUID(), name: String, notes: String = "", colorHex: String = "#6C5CE7") {
+        self.id = id
+        self.name = name
+        self.notes = notes
+        self.colorHex = colorHex
+    }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        notes = try container.decodeIfPresent(String.self, forKey: .notes) ?? ""
+        colorHex = try container.decodeIfPresent(String.self, forKey: .colorHex) ?? "#6C5CE7"
+    }
+}
+
+struct CustomPriority: Identifiable, Codable, Hashable, Sendable {
+    var id = UUID()
+    var name: String
+    var threatLevel: Int = 3
+    var colorHex: String = "#94BD80"
+}
+
+struct Todo: Identifiable, Codable, Sendable {
+    var id = UUID()
+    var title: String
+    var priority: Priority = .normal
+    var due: Date?
+    var repeatRule: RepeatRule = .none
+    var repeatDays: Set<Weekday> = []
+    var groupID: UUID?
+    var customPriorityID: UUID?
+    var extraReminder: ReminderOffset = .none
+    var done = false
+    var created = Date()
+
+    enum CodingKeys: String, CodingKey { case id, title, priority, due, repeatRule, repeatDays, groupID, customPriorityID, extraReminder, done, created }
+    init(title: String, priority: Priority = .normal, due: Date? = nil, repeatRule: RepeatRule = .none, repeatDays: Set<Weekday> = [], groupID: UUID? = nil, customPriorityID: UUID? = nil, extraReminder: ReminderOffset = .none, done: Bool = false, created: Date = Date()) {
+        self.title = title
+        self.priority = priority
+        self.due = due
+        self.repeatRule = repeatRule
+        self.repeatDays = repeatDays
+        self.groupID = groupID
+        self.customPriorityID = customPriorityID
+        self.extraReminder = extraReminder
+        self.done = done
+        self.created = created
+    }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        title = try container.decode(String.self, forKey: .title)
+        priority = try container.decode(Priority.self, forKey: .priority)
+        due = try container.decodeIfPresent(Date.self, forKey: .due)
+        repeatRule = try container.decodeIfPresent(RepeatRule.self, forKey: .repeatRule) ?? .none
+        repeatDays = try container.decodeIfPresent(Set<Weekday>.self, forKey: .repeatDays) ?? []
+        groupID = try container.decodeIfPresent(UUID.self, forKey: .groupID)
+        customPriorityID = try container.decodeIfPresent(UUID.self, forKey: .customPriorityID)
+        extraReminder = try container.decodeIfPresent(ReminderOffset.self, forKey: .extraReminder) ?? .none
+        done = try container.decode(Bool.self, forKey: .done)
+        created = try container.decode(Date.self, forKey: .created)
+    }
+}
+@MainActor final class Store: ObservableObject {
+    @Published private(set) var todos: [Todo] = []
+    @Published private(set) var groups: [TodoGroup] = []
+    @Published private(set) var customPriorities: [CustomPriority] = []
+    @Published var error: String?
+    private var writable = true
+    private let file: URL
+    private let groupsFile: URL
+    private let prioritiesFile: URL
+    init(file: URL? = nil) {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let newDirectory = support.appendingPathComponent("todo list")
+        let oldDirectory = support.appendingPathComponent("KleineListe")
+        if file == nil, !FileManager.default.fileExists(atPath: newDirectory.path), FileManager.default.fileExists(atPath: oldDirectory.path) {
+            try? FileManager.default.moveItem(at: oldDirectory, to: newDirectory)
+        }
+        self.file = file ?? newDirectory.appendingPathComponent("todos.json")
+        self.groupsFile = self.file.deletingLastPathComponent().appendingPathComponent("groups.json")
+        self.prioritiesFile = self.file.deletingLastPathComponent().appendingPathComponent("custom-priorities.json")
+        do { todos = try JSONDecoder().decode([Todo].self, from: Data(contentsOf: self.file)) }
+        catch let e as CocoaError where e.code == .fileReadNoSuchFile { }
+        catch { writable = false; self.error = "Aufgaben konnten nicht geladen werden. Die Datei bleibt erhalten. \(error.localizedDescription)" }
+        if let data = try? Data(contentsOf: groupsFile) { groups = (try? JSONDecoder().decode([TodoGroup].self, from: data)) ?? [] }
+        if let data = try? Data(contentsOf: prioritiesFile) { customPriorities = (try? JSONDecoder().decode([CustomPriority].self, from: data)) ?? [] }
+    }
+    var count: Int { todos.filter { !$0.done }.count }
+    func save(_ item: Todo) {
+        guard writable else { return }
+        var item = item
+        item.title = item.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !item.title.isEmpty else { return }
+        if let i = todos.firstIndex(where: { $0.id == item.id }) { todos[i] = item }
+        else { todos.append(item) }
+        persist()
+    }
+    func toggle(_ item: Todo) { var changed = item; changed.done.toggle(); save(changed) }
+    func moveTodo(_ id: UUID, to groupID: UUID?) {
+        guard writable, let index = todos.firstIndex(where: { $0.id == id }) else { return }
+        todos[index].groupID = groupID
+        persist()
+    }
+    func delete(_ item: Todo) {
+        guard writable else { return }
+        todos.removeAll { $0.id == item.id }; persist()
+    }
+    func createGroup(name: String) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard writable, !name.isEmpty else { return }
+        groups.append(TodoGroup(name: name)); persistGroups()
+    }
+    func updateGroup(_ group: TodoGroup) {
+        guard writable, let index = groups.firstIndex(where: { $0.id == group.id }) else { return }
+        groups[index] = group; persistGroups()
+    }
+    func createCustomPriority(name: String, threatLevel: Int = 3) {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard writable, !name.isEmpty else { return }
+        customPriorities.append(CustomPriority(name: name, threatLevel: min(max(threatLevel, 1), 5))); persistPriorities()
+    }
+    func deleteGroup(_ group: TodoGroup) {
+        guard writable else { return }
+        groups.removeAll { $0.id == group.id }
+        todos = todos.map { var todo = $0; if todo.groupID == group.id { todo.groupID = nil }; return todo }
+        persistGroups(); persist()
+    }
+    func deleteCustomPriority(_ priority: CustomPriority) {
+        guard writable else { return }
+        customPriorities.removeAll { $0.id == priority.id }
+        todos = todos.map { var todo = $0; if todo.customPriorityID == priority.id { todo.customPriorityID = nil }; return todo }
+        persistPriorities(); persist()
+    }
+    func updateCustomPriority(_ priority: CustomPriority) {
+        guard writable, let index = customPriorities.firstIndex(where: { $0.id == priority.id }) else { return }
+        customPriorities[index] = priority; persistPriorities()
+    }
+    private func persist() {
+        do {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONEncoder().encode(todos).write(to: file, options: .atomic)
+            error = nil
+        } catch { self.error = "Speichern fehlgeschlagen. Änderungen sind vorerst nur im Arbeitsspeicher. \(error.localizedDescription)" }
+    }
+    private func persistGroups() {
+        do {
+            try FileManager.default.createDirectory(at: groupsFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONEncoder().encode(groups).write(to: groupsFile, options: .atomic)
+        } catch let saveError { self.error = "Gruppen konnten nicht gespeichert werden. \(saveError.localizedDescription)" }
+    }
+    private func persistPriorities() {
+        do {
+            try FileManager.default.createDirectory(at: prioritiesFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONEncoder().encode(customPriorities).write(to: prioritiesFile, options: .atomic)
+        } catch let saveError { self.error = "Custom-Prioritäten konnten nicht gespeichert werden. \(saveError.localizedDescription)" }
+    }
+}
