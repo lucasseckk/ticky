@@ -186,7 +186,7 @@ struct Panel: View {
                         } else {
                         VStack(spacing: 4) {
                             ForEach(standardItems) { item in todoCard(item) }
-                            if standardItems.isEmpty && (draggingTodoID != nil || !filterActive) {
+                            if standardItems.isEmpty && draggingTodoID != nil {
                                 Text("To-Dos hierher ziehen, um sie aus einer Gruppe zu lösen.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
