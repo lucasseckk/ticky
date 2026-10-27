@@ -28,6 +28,19 @@ import Foundation
         loaded.moveTodo(item.id, to: nil)
         precondition(Store(file: file).todos.first?.groupID == nil)
         loaded.moveTodo(item.id, to: groupID)
+        let now = Date(timeIntervalSince1970: 2000000000)
+        let moved = loaded.todos[0]
+        precondition(TodoFilter(query: "lern").matches(moved, now: now))
+        precondition(!TodoFilter(query: "xyz").matches(moved, now: now))
+        precondition(TodoFilter(group: .group(groupID)).matches(moved, now: now))
+        precondition(!TodoFilter(group: .ungrouped).matches(moved, now: now))
+        precondition(TodoFilter(priority: .standard(.high)).matches(moved, now: now))
+        precondition(!TodoFilter(priority: .standard(.low)).matches(moved, now: now))
+        precondition(TodoFilter(due: .today).matches(moved, now: now))
+        precondition(!TodoFilter(due: .none).matches(moved, now: now))
+        precondition(!TodoFilter(due: .overdue).matches(moved, now: now.addingTimeInterval(60)))
+        precondition(!TodoFilter(query: "lern", priority: .standard(.low)).matches(moved, now: now))
+        precondition(!TodoFilter().isActive && TodoFilter(query: "a").isActive)
         precondition(Store(file: file).todos.count == 1)
         loaded.delete(item)
         precondition(Store(file: file).todos.isEmpty)
@@ -38,6 +51,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Löschen, Schutz beschädigter Daten")
     }
 }

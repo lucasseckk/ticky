@@ -118,6 +118,71 @@ struct Todo: Identifiable, Codable, Sendable {
         created = try container.decode(Date.self, forKey: .created)
     }
 }
+enum PriorityChoice: Hashable, Sendable {
+    case standard(Priority)
+    case custom(UUID)
+}
+
+enum StatusFilter: String, CaseIterable, Identifiable, Sendable {
+    case open, done, all
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .open: return "Offen"
+        case .done: return "Erledigt"
+        case .all: return "Alle"
+        }
+    }
+}
+
+enum GroupFilter: Hashable, Sendable {
+    case all, ungrouped, group(UUID)
+}
+
+enum DueFilter: String, CaseIterable, Identifiable, Sendable {
+    case all, overdue, today, nextSevenDays, none
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .all: return "Alle"
+        case .overdue: return "Überfällig"
+        case .today: return "Heute"
+        case .nextSevenDays: return "Nächste 7 Tage"
+        case .none: return "Ohne Datum"
+        }
+    }
+}
+
+struct TodoFilter: Equatable, Sendable {
+    var query = ""
+    var group: GroupFilter = .all
+    var priority: PriorityChoice?
+    var due: DueFilter = .all
+    var isActive: Bool { self != TodoFilter() }
+
+    func matches(_ todo: Todo, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !query.isEmpty, !todo.title.localizedCaseInsensitiveContains(query) { return false }
+        switch group {
+        case .all: break
+        case .ungrouped: if todo.groupID != nil { return false }
+        case .group(let id): if todo.groupID != id { return false }
+        }
+        switch priority {
+        case nil: break
+        case .standard(let level): if todo.customPriorityID != nil || todo.priority != level { return false }
+        case .custom(let id): if todo.customPriorityID != id { return false }
+        }
+        switch due {
+        case .all: return true
+        case .none: return todo.due == nil
+        case .overdue: return !todo.done && (todo.due.map { $0 < now } ?? false)
+        case .today: return todo.due.map { calendar.isDate($0, inSameDayAs: now) } ?? false
+        case .nextSevenDays: return todo.due.map { $0 >= now && $0 < now.addingTimeInterval(7 * 86400) } ?? false
+        }
+    }
+}
+
 @MainActor final class Store: ObservableObject {
     @Published private(set) var todos: [Todo] = []
     @Published private(set) var groups: [TodoGroup] = []
