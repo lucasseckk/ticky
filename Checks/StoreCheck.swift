@@ -90,6 +90,24 @@ import Foundation
         archive.undo()
         precondition(Store(file: file).todos.contains { $0.id == once.id && $0.archived })
         [once, weekly, open].forEach(archive.delete)
+        let source = Store(file: directory.appendingPathComponent("quelle/todos.json"))
+        source.createGroup(name: "Uni")
+        source.updateGroup({ var g = source.groups[0]; g.notes = "Raum 101"; return g }())
+        source.createCustomPriority(name: "Prüfung", threatLevel: 5)
+        source.save(Todo(title: "Lernen", groupID: source.groups[0].id, customPriorityID: source.customPriorities[0].id))
+        let exported = try source.exportData()
+        let target = Store(file: directory.appendingPathComponent("ziel/todos.json"))
+        target.save(Todo(title: "Alt"))
+        do { try target.importData(Data("{}".utf8)); preconditionFailure("ungültige Datei importiert") } catch {}
+        precondition(Store(file: directory.appendingPathComponent("ziel/todos.json")).todos.map(\.title) == ["Alt"])
+        let safety = try target.importData(exported)
+        let saved = try BackupFile.decoder().decode(BackupFile.self, from: Data(contentsOf: safety))
+        precondition(saved.todos.map(\.title) == ["Alt"])
+        let reloaded = Store(file: directory.appendingPathComponent("ziel/todos.json"))
+        precondition(reloaded.todos.map(\.title) == ["Lernen"])
+        precondition(reloaded.groups.first?.notes == "Raum 101")
+        precondition(reloaded.customPriorities.first?.name == "Prüfung")
+        precondition(reloaded.todos.first?.groupID == reloaded.groups.first?.id)
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
         calendar.firstWeekday = 2
@@ -114,6 +132,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, Löschen, Schutz beschädigter Daten")
     }
 }

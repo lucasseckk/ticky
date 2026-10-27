@@ -221,6 +221,39 @@ struct TodoFilter: Equatable, Sendable {
     }
 }
 
+/// Versioned export format; group notes travel inside the groups.
+struct BackupFile: Codable {
+    static let currentVersion = 1
+    var version = BackupFile.currentVersion
+    var exportedAt = Date()
+    var todos: [Todo]
+    var groups: [TodoGroup]
+    var customPriorities: [CustomPriority]
+
+    static func encoder() -> JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return encoder
+    }
+    static func decoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
+    }
+}
+
+enum ImportError: LocalizedError {
+    case unreadable, unsupportedVersion(Int), duplicateIDs
+    var errorDescription: String? {
+        switch self {
+        case .unreadable: return "Die Datei ist keine gültige To-Do-List-Sicherung."
+        case .unsupportedVersion(let version): return "Sicherungsformat \(version) wird nicht unterstützt."
+        case .duplicateIDs: return "Die Sicherung enthält doppelte Einträge."
+        }
+    }
+}
+
 /// Snapshot taken before a change that can be undone; lives only in memory so no stale step survives a restart.
 struct UndoStep: Identifiable {
     let id = UUID()
@@ -349,6 +382,35 @@ struct UndoStep: Identifiable {
         recordUndo("Archiv geleert")
         todos.removeAll(where: \.archived)
         persist()
+    }
+    func exportData() throws -> Data {
+        try BackupFile.encoder().encode(BackupFile(todos: todos, groups: groups, customPriorities: customPriorities))
+    }
+    /// Validates everything before touching current data, then saves the current state to Backups/ and replaces it.
+    @discardableResult func importData(_ data: Data) throws -> URL {
+        guard let backup = try? BackupFile.decoder().decode(BackupFile.self, from: data) else { throw ImportError.unreadable }
+        guard backup.version == BackupFile.currentVersion else { throw ImportError.unsupportedVersion(backup.version) }
+        guard Set(backup.todos.map(\.id)).count == backup.todos.count,
+              Set(backup.groups.map(\.id)).count == backup.groups.count,
+              Set(backup.customPriorities.map(\.id)).count == backup.customPriorities.count else { throw ImportError.duplicateIDs }
+        guard writable else { throw CocoaError(.fileWriteNoPermission) }
+        let directory = file.deletingLastPathComponent().appendingPathComponent("Backups")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let safety = directory.appendingPathComponent("vor-import-\(stamp).json")
+        try exportData().write(to: safety, options: .atomic)
+        let groupIDs = Set(backup.groups.map(\.id)), priorityIDs = Set(backup.customPriorities.map(\.id))
+        recordUndo("Sicherung importiert")
+        todos = backup.todos.map { todo in
+            var todo = todo
+            if let id = todo.groupID, !groupIDs.contains(id) { todo.groupID = nil }
+            if let id = todo.customPriorityID, !priorityIDs.contains(id) { todo.customPriorityID = nil }
+            return todo
+        }
+        groups = backup.groups
+        customPriorities = backup.customPriorities
+        persist(); persistGroups(); persistPriorities()
+        return safety
     }
     func undo() {
         guard writable, let step = undoStep else { return }

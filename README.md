@@ -8,6 +8,12 @@ Native macOS-Menüleisten-App für To-dos. Die App verwendet SwiftUI, benötigt 
 - Lokale macOS-Benachrichtigungen
 - Gruppen mit Notizen und individuellen Farben
 - Suche und kombinierbare Filter für Status, Gruppe, Priorität und Fälligkeit
+- Fälligkeitsansicht: Überfällig, Heute, Morgen, Diese Woche, Später
+- Automatische oder manuelle Reihenfolge per Drag-and-drop
+- Schnellbearbeitung auf der Karte (Doppelklick auf den Titel, Priorität und Gruppe im ⋯-Menü)
+- Rückgängig (⌘Z) für Löschen, Verschieben, Erledigen und Gruppenänderungen
+- Archiv für erledigte To-dos
+- Export und Import als JSON-Sicherung
 - Drag-and-drop in Gruppen, zwischen Gruppen und zurück in den normalen Bereich
 - Transparente Drag-Vorschau
 - Animierte Erstellung und Darstellung
@@ -37,6 +43,8 @@ Die App speichert To-dos lokal unter:
 ```text
 ~/Library/Application Support/todo list/
 ```
+
+Vor jedem Import wird der bisherige Stand unter `Backups/` in diesem Ordner gesichert. Exporte enthalten alle To-dos im Klartext und sollten entsprechend aufbewahrt werden.
 
 Es werden keine Zugangsdaten, API-Schlüssel oder Kontoinformationen im Projekt benötigt. Benachrichtigungen verwenden ausschließlich die lokale macOS-API. Lokale Daten, Build-Ausgaben, Editor-Einstellungen und Agent-Metadaten gehören nicht in ein öffentliches Repository und werden deshalb ignoriert.
 
