@@ -42,6 +42,9 @@ struct Panel: View {
     @State private var draggingGroupID: UUID?
     @State private var cardFrames: [UUID: CGRect] = [:]
     @State private var hoveredCardID: UUID?
+    @State private var editingTodoID: UUID?
+    @State private var editingTitle = ""
+    @FocusState private var titleFieldFocused: Bool
     @AppStorage("dueView") private var dueView = false
     @AppStorage("manualSort") private var manualSort = false
     @State private var dragLocation = CGPoint.zero
@@ -438,8 +441,21 @@ struct Panel: View {
                     .foregroundStyle(item.done ? Color.green : Color.secondary)
             }.buttonStyle(.plain).accessibilityLabel(item.done ? "Wieder öffnen: \(item.title)" : "Erledigen: \(item.title)")
             VStack(alignment: .leading, spacing: 5) {
-                Text(item.title).strikethrough(item.done).foregroundStyle(item.done ? .secondary : .primary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if editingTodoID == item.id {
+                    TextField("Titel", text: $editingTitle)
+                        .textFieldStyle(.plain)
+                        .focused($titleFieldFocused)
+                        .onSubmit { commitTitle(item.id) }
+                        .onExitCommand { editingTodoID = nil }
+                        .onChange(of: titleFieldFocused) { _, focused in
+                            if !focused { commitTitle(item.id) }
+                        }
+                } else {
+                    Text(item.title).strikethrough(item.done).foregroundStyle(item.done ? .secondary : .primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onTapGesture(count: 2) { startEditingTitle(item) }
+                        .help("Doppelklick zum Umbenennen")
+                }
                 if let due = item.due {
                     Text(due, format: .dateTime.day().month().hour().minute())
                         .font(.caption)
@@ -455,7 +471,19 @@ struct Panel: View {
             }
             Spacer(minLength: 0)
             Menu {
-                Button("Bearbeiten") { draftIsNew = false; draft = item }
+                Button("Umbenennen") { startEditingTitle(item) }
+                Picker("Priorität", selection: priorityBinding(for: item)) {
+                    ForEach(Priority.allCases.reversed()) { Text($0.label).tag(PriorityChoice.standard($0)) }
+                    if !store.customPriorities.isEmpty {
+                        Divider()
+                        ForEach(store.customPriorities) { Text($0.name).tag(PriorityChoice.custom($0.id)) }
+                    }
+                }
+                Picker("Gruppe", selection: groupBinding(for: item)) {
+                    Text("Keine Gruppe").tag(Optional<UUID>.none)
+                    ForEach(store.groups) { Text($0.name).tag(Optional($0.id)) }
+                }
+                Button("Fälligkeit und Wiederholung …") { draftIsNew = false; draft = item }
                 Divider()
                 Button("Löschen", role: .destructive) { withAnimation { store.delete(item) }; rescheduleNotifications() }
             } label: { Image(systemName: "ellipsis") }
@@ -502,6 +530,45 @@ struct Panel: View {
                 hoveringStandard = false
             })
         .transition(.asymmetric(insertion: .scale(scale: 0.55, anchor: .top).combined(with: .move(edge: .top)).combined(with: .opacity), removal: .opacity))
+    }
+    private func startEditingTitle(_ item: Todo) {
+        editingTitle = item.title
+        editingTodoID = item.id
+        titleFieldFocused = true
+    }
+    private func commitTitle(_ id: UUID) {
+        guard editingTodoID == id else { return }
+        editingTodoID = nil
+        guard var todo = store.todos.first(where: { $0.id == id }), todo.title != editingTitle else { return }
+        todo.title = editingTitle
+        store.save(todo)
+        rescheduleNotifications()
+    }
+    private func priorityBinding(for item: Todo) -> Binding<PriorityChoice> {
+        Binding(
+            get: { item.customPriorityID.map(PriorityChoice.custom) ?? .standard(item.priority) },
+            set: { choice in
+                guard var todo = store.todos.first(where: { $0.id == item.id }) else { return }
+                switch choice {
+                case .standard(let priority):
+                    todo.priority = priority
+                    todo.customPriorityID = nil
+                case .custom(let id):
+                    todo.customPriorityID = id
+                }
+                withAnimation { store.save(todo) }
+                rescheduleNotifications()
+            }
+        )
+    }
+    private func groupBinding(for item: Todo) -> Binding<UUID?> {
+        Binding(
+            get: { item.groupID },
+            set: { groupID in
+                withAnimation { store.moveTodo(item.id, to: groupID) }
+                rescheduleNotifications()
+            }
+        )
     }
     @ViewBuilder private func todoDragPreview(_ item: Todo) -> some View {
         HStack(spacing: 8) {
