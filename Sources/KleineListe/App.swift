@@ -171,7 +171,7 @@ struct Panel: View {
                     }
                 }
                 .coordinateSpace(name: "todo-list")
-                .frame(height: 380)
+                .frame(minHeight: 160, maxHeight: .infinity)
                 .onPreferenceChange(GroupFramePreferenceKey.self) { groupFrames = $0 }
                 .onPreferenceChange(StandardFramePreferenceKey.self) { standardFrame = $0 }
                 .overlay(alignment: .topLeading) {
@@ -186,7 +186,8 @@ struct Panel: View {
             }
         }
         .padding(20)
-        .frame(width: 460)
+        // Fixed list height: the menu bar window does not reliably grow, so the search bar takes space from the list instead.
+        .frame(width: 460, height: showSettings || draft != nil ? nil : 560, alignment: .top)
         .background(backgroundColor.opacity(0.18), in: RoundedRectangle(cornerRadius: 16))
         .opacity(panelVisible ? 1 : 0)
         .scaleEffect(panelVisible ? 1 : 0.96)
