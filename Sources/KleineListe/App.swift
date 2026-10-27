@@ -311,7 +311,11 @@ private struct GroupFramePreferenceKey: PreferenceKey {
 
 private struct StandardFramePreferenceKey: PreferenceKey {
     static let defaultValue = CGRect.zero
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
+    // Sibling views without this preference report .zero; they must not overwrite the real frame.
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next != .zero { value = next }
+    }
 }
 
 struct SettingsView: View {
