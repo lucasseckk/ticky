@@ -90,9 +90,15 @@ Alle Daten liegen lokal unter:
 | `Sources/KleineListe/GitHub.swift` | Aufruf der GitHub CLI, PR-Parsing, CI-Status |
 | `Sources/KleineListe/Island.swift` | Gemeinsamer Island-Look (Pillen, Karten, Schalter, Animation) |
 | `Sources/KleineListe/Notifications.swift` | Mitteilungen und Erinnerungen |
+| `Sources/KleineListe/ClockIcon.swift` | Uhr-Icon für Menüleiste und App |
+| `Resources/AppIcon.icns`, `Scripts/` | Farbiges App-Icon und Skript zum Erzeugen der PNGs |
 | `Checks/StoreCheck.swift` | Regressionstests (ohne Netzwerk) |
 | `build.command` / `check.command` | Build und Tests |
 | `AGENTS.md` | Regeln für Coding-Agents in diesem Repository |
+
+### Icons
+
+Die Menüleiste zeigt eine eigene Uhr mit Gesicht: lächelnd, wenn alles erledigt ist, sonst neutral. Das Template-Bild passt sich dem hellen und dunklen macOS-Modus an. `Resources/AppIcon.icns` enthält das passende farbige Finder-Icon. Die gemeinsame Vektorgrafik liegt in `Sources/KleineListe/ClockIcon.swift`. Nach Änderungen erzeugt `zsh check.command` die PNG-Auflösungen neu; das App-Icon lässt sich anschließend mit `iconutil -c icns .build/AppIcon.iconset -o Resources/AppIcon.icns` aktualisieren.
 
 ## Arbeitsweise
 
@@ -105,4 +111,3 @@ Alle Daten liegen lokal unter:
 - Dringende Issues im Dev-Bereich (#26)
 - Agent-Issues: Aufgaben, die Coding-Agents sehen und abarbeiten können (#27)
 - Insel an der Notch als Alternative zum Menüleisten-Panel (#50)
-- Eigenes App-Icon (#21)
