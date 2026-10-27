@@ -192,6 +192,10 @@ struct Panel: View {
             }
             }
         }
+        .overlay(alignment: .bottom) {
+            if let step = store.undoStep { undoBar(step) }
+        }
+        .animation(.easeOut(duration: 0.2), value: store.undoStep?.id)
         .padding(20)
         // Fixed list height: the menu bar window does not reliably grow, so the search bar takes space from the list instead.
         .frame(width: 460, height: showSettings || draft != nil ? nil : 560, alignment: .top)
@@ -201,6 +205,33 @@ struct Panel: View {
         .onAppear {
             withAnimation(.easeOut(duration: 0.2)) { panelVisible = true }
             rescheduleNotifications()
+        }
+    }
+    private func undoBar(_ step: UndoStep) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "arrow.uturn.backward.circle.fill").foregroundStyle(Color.accentColor)
+            Text(step.label).lineLimit(1)
+            Spacer(minLength: 8)
+            Button("Rückgängig") {
+                withAnimation { store.undo() }
+                rescheduleNotifications()
+            }
+            .keyboardShortcut("z", modifiers: .command)
+            .help("Rückgängig (⌘Z)")
+            Button { store.dismissUndo(step.id) } label: { Image(systemName: "xmark") }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("Hinweis schließen")
+        }
+        .font(.callout)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(.regularMaterial, in: Capsule())
+        .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .task(id: step.id) {
+            try? await Task.sleep(for: .seconds(8))
+            store.dismissUndo(step.id)
         }
     }
     private func openNewEditor() {
