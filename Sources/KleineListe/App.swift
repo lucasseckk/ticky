@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 @main struct ToDoListApp: App {
     @NSApplicationDelegateAdaptor(NotificationAppDelegate.self) private var appDelegate
@@ -35,7 +34,7 @@ struct Panel: View {
     @State private var hoveredGroupID: UUID?
     @State private var groupFrames: [UUID: CGRect] = [:]
     @State private var standardFrame = CGRect.zero
-    @State private var standardDropTargeted = false
+    @State private var hoveringStandard = false
     @State private var draggingTodoID: UUID?
     @State private var dragLocation = CGPoint.zero
     @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
@@ -144,12 +143,11 @@ struct Panel: View {
                             }
                         }
                         .contentShape(Rectangle())
+                        .background(Color.accentColor.opacity(hoveringStandard ? 0.15 : 0), in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.accentColor.opacity(hoveringStandard ? 0.6 : 0), lineWidth: 2))
                         .background(GeometryReader { proxy in
                             Color.clear.preference(key: StandardFramePreferenceKey.self, value: proxy.frame(in: .named("todo-list")))
                         })
-                        .onDrop(of: [UTType.utf8PlainText, UTType.plainText, UTType.text], isTargeted: $standardDropTargeted) { providers in
-                            moveDroppedTodo(providers, to: nil)
-                        }
                         ForEach(store.groups) { group in groupBlock(group) }
                     }
                 }
@@ -208,12 +206,6 @@ struct Panel: View {
         .background(GeometryReader { proxy in
             Color.clear.preference(key: GroupFramePreferenceKey.self, value: [group.id: proxy.frame(in: .named("todo-list"))])
         })
-        .onDrop(of: [UTType.utf8PlainText, UTType.plainText, UTType.text], isTargeted: Binding(
-            get: { hoveredGroupID == group.id },
-            set: { targeted in hoveredGroupID = targeted ? group.id : (hoveredGroupID == group.id ? nil : hoveredGroupID) }
-        )) { providers in
-            moveDroppedTodo(providers, to: group.id)
-        }
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
     private func groupNotesBinding(for group: TodoGroup) -> Binding<String> {
@@ -255,41 +247,28 @@ struct Panel: View {
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor(for: item), lineWidth: 1.5))
         .opacity(draggingTodoID == item.id ? 0.28 : (item.done ? 0.6 : 1))
         .contentShape(RoundedRectangle(cornerRadius: 12))
+        // Only this gesture handles dragging: a parallel system .onDrag cancels it without calling onEnded.
         .simultaneousGesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("todo-list"))
             .onChanged { value in
                 guard abs(value.translation.width) > 8 || abs(value.translation.height) > 8 else { return }
                 draggingTodoID = item.id
                 dragLocation = value.location
                 hoveredGroupID = groupFrames.first(where: { $0.value.contains(value.location) })?.key
+                hoveringStandard = hoveredGroupID == nil && standardFrame.contains(value.location)
             }
             .onEnded { value in
                 guard draggingTodoID == item.id else { return }
                 let groupID = groupFrames.first(where: { $0.value.contains(value.location) })?.key
-                let isStandardDrop = standardFrame.contains(value.location)
-                if let groupID {
+                let isStandardDrop = groupID == nil && standardFrame.contains(value.location)
+                if (groupID != nil || isStandardDrop), groupID != item.groupID {
                     withAnimation { store.moveTodo(item.id, to: groupID) }
-                    rescheduleNotifications()
-                } else if isStandardDrop {
-                    withAnimation { store.moveTodo(item.id, to: nil) }
                     rescheduleNotifications()
                 }
                 draggingTodoID = nil
                 hoveredGroupID = nil
+                hoveringStandard = false
             })
-        .onDrag { NSItemProvider(object: NSString(string: item.id.uuidString)) } preview: { todoDragPreview(item) }
         .transition(.asymmetric(insertion: .scale(scale: 0.55, anchor: .top).combined(with: .move(edge: .top)).combined(with: .opacity), removal: .opacity))
-    }
-    private func moveDroppedTodo(_ providers: [NSItemProvider], to groupID: UUID?) -> Bool {
-        guard let provider = providers.first else { return false }
-        provider.loadObject(ofClass: NSString.self) { object, _ in
-            guard let idString = (object as? NSString)?.description, let id = UUID(uuidString: idString) else { return }
-            DispatchQueue.main.async {
-                withAnimation { store.moveTodo(id, to: groupID) }
-                hoveredGroupID = nil
-                rescheduleNotifications()
-            }
-        }
-        return true
     }
     @ViewBuilder private func todoDragPreview(_ item: Todo) -> some View {
         HStack(spacing: 8) {

@@ -24,6 +24,10 @@ import Foundation
         precondition(Store(file: file).todos.first?.groupID == groupID)
         loaded.toggle(item)
         precondition(Store(file: file).count == 0)
+        precondition(Store(file: file).todos.first?.groupID == groupID)
+        loaded.moveTodo(item.id, to: nil)
+        precondition(Store(file: file).todos.first?.groupID == nil)
+        loaded.moveTodo(item.id, to: groupID)
         precondition(Store(file: file).todos.count == 1)
         loaded.delete(item)
         precondition(Store(file: file).todos.isEmpty)
@@ -34,6 +38,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Löschen, Schutz beschädigter Daten")
     }
 }
