@@ -227,6 +227,23 @@ struct TodoFilter: Equatable, Sendable {
         todos[index].groupID = groupID
         persist()
     }
+    /// Moves a to-do to the target's position (after it when moving down, before it when moving up) and into the target's group.
+    func reorderTodo(_ id: UUID, to targetID: UUID) {
+        guard writable, id != targetID,
+              let from = todos.firstIndex(where: { $0.id == id }),
+              let to = todos.firstIndex(where: { $0.id == targetID }) else { return }
+        var item = todos.remove(at: from)
+        item.groupID = todos[to > from ? to - 1 : to].groupID
+        todos.insert(item, at: to)
+        persist()
+    }
+    func reorderGroup(_ id: UUID, to targetID: UUID) {
+        guard writable, id != targetID,
+              let from = groups.firstIndex(where: { $0.id == id }),
+              let to = groups.firstIndex(where: { $0.id == targetID }) else { return }
+        groups.insert(groups.remove(at: from), at: to)
+        persistGroups()
+    }
     func delete(_ item: Todo) {
         guard writable else { return }
         todos.removeAll { $0.id == item.id }; persist()

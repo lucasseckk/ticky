@@ -39,6 +39,10 @@ struct Panel: View {
     @State private var standardFrame = CGRect.zero
     @State private var hoveringStandard = false
     @State private var draggingTodoID: UUID?
+    @State private var draggingGroupID: UUID?
+    @State private var cardFrames: [UUID: CGRect] = [:]
+    @State private var hoveredCardID: UUID?
+    @AppStorage("manualSort") private var manualSort = false
     @State private var dragLocation = CGPoint.zero
     @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
@@ -49,8 +53,10 @@ struct Panel: View {
     private var mediumPriorityColor: Color { Color(hex: mediumPriorityColorHex) }
     private var lowPriorityColor: Color { Color(hex: lowPriorityColorHex) }
     private var items: [Todo] {
-        store.todos.filter { filter.matches($0) && matchesStatus($0) }.sorted {
+        let manualOrder = Dictionary(uniqueKeysWithValues: store.todos.enumerated().map { ($1.id, $0) })
+        return store.todos.filter { filter.matches($0) && matchesStatus($0) }.sorted {
             if $0.done != $1.done { return !$0.done }
+            if manualSort { return manualOrder[$0.id, default: 0] < manualOrder[$1.id, default: 0] }
             if priorityLevel($0) != priorityLevel($1) { return priorityLevel($0) > priorityLevel($1) }
             if $0.due != $1.due { return ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
             return $0.created < $1.created
@@ -173,6 +179,7 @@ struct Panel: View {
                 .coordinateSpace(name: "todo-list")
                 .frame(minHeight: 160, maxHeight: .infinity)
                 .onPreferenceChange(GroupFramePreferenceKey.self) { groupFrames = $0 }
+                .onPreferenceChange(CardFramePreferenceKey.self) { cardFrames = $0 }
                 .onPreferenceChange(StandardFramePreferenceKey.self) { standardFrame = $0 }
                 .overlay(alignment: .topLeading) {
                     if let draggingTodoID,
@@ -233,6 +240,10 @@ struct Panel: View {
                         ForEach(DueFilter.allCases) { Text($0.label).tag($0) }
                     }
                     Divider()
+                    Picker("Sortierung", selection: $manualSort) {
+                        Text("Automatisch").tag(false)
+                        Text("Manuell").tag(true)
+                    }
                     Button("Filter zurücksetzen", action: resetFilter).disabled(!filterActive)
                 } label: {
                     Image(systemName: filterActive ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
@@ -316,7 +327,23 @@ struct Panel: View {
     @ViewBuilder private func groupBlock(_ group: TodoGroup) -> some View {
         let groupItems = groupedItems(for: group.id)
         VStack(alignment: .leading, spacing: 10) {
-            Text(group.name).font(.title3.bold()).frame(maxWidth: .infinity, alignment: .leading)
+            HStack {
+                Text(group.name).font(.title3.bold())
+                Spacer()
+                Image(systemName: "line.3.horizontal").foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+            .help("Ziehen, um die Gruppe zu verschieben")
+            .gesture(DragGesture(minimumDistance: 8, coordinateSpace: .named("todo-list"))
+                .onChanged { value in
+                    draggingGroupID = group.id
+                    hoveredGroupID = groupFrames.first(where: { $0.key != group.id && $0.value.contains(value.location) })?.key
+                }
+                .onEnded { _ in
+                    if let target = hoveredGroupID { withAnimation { store.reorderGroup(group.id, to: target) } }
+                    draggingGroupID = nil
+                    hoveredGroupID = nil
+                })
             Text("Notizen").font(.caption.bold()).foregroundStyle(.secondary)
             TextEditor(text: groupNotesBinding(for: group))
                 .frame(minHeight: 58, maxHeight: 84)
@@ -330,6 +357,7 @@ struct Panel: View {
         .padding(14)
         .background(Color(hex: group.colorHex).opacity(hoveredGroupID == group.id ? 0.22 : 0.10), in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: group.colorHex).opacity(0.55), lineWidth: 2))
+        .opacity(draggingGroupID == group.id ? 0.4 : 1)
         .background(GeometryReader { proxy in
             Color.clear.preference(key: GroupFramePreferenceKey.self, value: [group.id: proxy.frame(in: .named("todo-list"))])
         })
@@ -372,14 +400,23 @@ struct Panel: View {
         .frame(minHeight: 68)
         .background(cardColor(for: item), in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor(for: item), lineWidth: 1.5))
+        .overlay(alignment: .top) {
+            if hoveredCardID == item.id {
+                Capsule().fill(Color.accentColor).frame(height: 4).offset(y: -4)
+            }
+        }
         .opacity(draggingTodoID == item.id ? 0.28 : (item.done ? 0.6 : 1))
         .contentShape(RoundedRectangle(cornerRadius: 12))
+        .background(GeometryReader { proxy in
+            Color.clear.preference(key: CardFramePreferenceKey.self, value: [item.id: proxy.frame(in: .named("todo-list"))])
+        })
         // Only this gesture handles dragging: a parallel system .onDrag cancels it without calling onEnded.
         .simultaneousGesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("todo-list"))
             .onChanged { value in
                 guard abs(value.translation.width) > 8 || abs(value.translation.height) > 8 else { return }
                 draggingTodoID = item.id
                 dragLocation = value.location
+                hoveredCardID = manualSort ? cardFrames.first(where: { $0.key != item.id && $0.value.contains(value.location) })?.key : nil
                 hoveredGroupID = groupFrames.first(where: { $0.value.contains(value.location) })?.key
                 hoveringStandard = hoveredGroupID == nil && standardFrame.contains(value.location)
             }
@@ -387,11 +424,14 @@ struct Panel: View {
                 guard draggingTodoID == item.id else { return }
                 let groupID = groupFrames.first(where: { $0.value.contains(value.location) })?.key
                 let isStandardDrop = groupID == nil && standardFrame.contains(value.location)
-                if (groupID != nil || isStandardDrop), groupID != item.groupID {
+                if let target = hoveredCardID {
+                    withAnimation { store.reorderTodo(item.id, to: target) }
+                } else if (groupID != nil || isStandardDrop), groupID != item.groupID {
                     withAnimation { store.moveTodo(item.id, to: groupID) }
                     rescheduleNotifications()
                 }
                 draggingTodoID = nil
+                hoveredCardID = nil
                 hoveredGroupID = nil
                 hoveringStandard = false
             })
@@ -436,6 +476,13 @@ private struct GroupFramePreferenceKey: PreferenceKey {
     }
 }
 
+private struct CardFramePreferenceKey: PreferenceKey {
+    static let defaultValue: [UUID: CGRect] = [:]
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) {
+        value.merge(nextValue(), uniquingKeysWith: { $1 })
+    }
+}
+
 private struct StandardFramePreferenceKey: PreferenceKey {
     static let defaultValue = CGRect.zero
     // Sibling views without this preference report .zero; they must not overwrite the real frame.
@@ -449,6 +496,7 @@ struct SettingsView: View {
     @ObservedObject var store: Store
     let onClose: () -> Void
     @State private var selectedTab = 0
+    @AppStorage("manualSort") private var manualSort = false
     @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
@@ -503,6 +551,16 @@ struct SettingsView: View {
                 if selectedTab == 0 {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
+                            SettingsCard(title: "Sortierung", systemImage: "arrow.up.arrow.down", subtitle: manualSort
+                                ? "Ziehe To-Dos auf andere To-Dos und Gruppen am Griff ≡, um die Reihenfolge festzulegen."
+                                : "Offene zuerst, dann nach Priorität, Fälligkeit und Erstellung. Gruppen lassen sich immer am Griff ≡ verschieben.") {
+                                Picker("Sortierung", selection: $manualSort) {
+                                    Text("Automatisch").tag(false)
+                                    Text("Manuell").tag(true)
+                                }
+                                .pickerStyle(.segmented)
+                                .labelsHidden()
+                            }
                             SettingsCard(title: "Gruppen", systemImage: "folder", subtitle: "Gruppen bündeln To-Dos mit gemeinsamen Notizen.") {
                                 ForEach(store.groups) { group in
                                     SettingsItemRow(name: group.name, colorHex: group.colorHex, detail: nil) { store.deleteGroup(group) }
