@@ -4,10 +4,11 @@ import AppKit
 @main struct ToDoListApp: App {
     @NSApplicationDelegateAdaptor(NotificationAppDelegate.self) private var appDelegate
     @StateObject private var store = Store()
+    @StateObject private var dev = DevStore()
     init() { migratePreviousSettings() }
     var body: some Scene {
         MenuBarExtra {
-            Panel(store: store)
+            Panel(store: store, dev: dev)
         } label: {
             Image(systemName: store.count == 0 ? "checkmark.circle" : "checklist")
                 .accessibilityLabel("To-Do List: \(store.count) offene To-Dos")
@@ -25,6 +26,7 @@ private func migratePreviousSettings() {
 
 struct Panel: View {
     @ObservedObject var store: Store
+    @ObservedObject var dev: DevStore
     @State private var panelVisible = false
     @State private var title = ""
     @State private var statusFilter = StatusFilter.open
@@ -151,7 +153,7 @@ struct Panel: View {
             if showSettings {
                 SettingsView(store: store, onClose: { showSettings = false })
             } else if section == .dev {
-                DevView()
+                DevView(dev: dev)
             } else {
             if draft == nil {
                 HStack {
