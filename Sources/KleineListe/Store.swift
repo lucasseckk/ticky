@@ -153,7 +153,10 @@ struct Todo: Identifiable, Codable, Sendable {
         else { todos.append(item) }
         persist()
     }
-    func toggle(_ item: Todo) { var changed = item; changed.done.toggle(); save(changed) }
+    func toggle(_ item: Todo) {
+        guard var changed = todos.first(where: { $0.id == item.id }) else { return }
+        changed.done.toggle(); save(changed)
+    }
     func moveTodo(_ id: UUID, to groupID: UUID?) {
         guard writable, let index = todos.firstIndex(where: { $0.id == id }) else { return }
         todos[index].groupID = groupID
