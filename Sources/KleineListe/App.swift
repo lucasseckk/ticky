@@ -130,7 +130,7 @@ struct Panel: View {
                             }
                             .padding(12)
                         }
-                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
                     }
                     .buttonStyle(.plain)
                     .frame(maxWidth: .infinity)
