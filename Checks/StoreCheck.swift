@@ -126,6 +126,16 @@ import Foundation
         precondition(bucket(36) == .thisWeek)
         precondition(bucket(24 * 5) == .later)
         precondition(DueBucket(Todo(title: "x"), now: noon, calendar: calendar) == .none)
+        precondition(GitHubCLI.locate(in: ["/nicht/vorhanden", "/bin/echo"])?.executable.path == "/bin/echo")
+        precondition(GitHubCLI.locate(in: ["/nicht/vorhanden"]) == nil)
+        let echoed = try GitHubCLI(executable: URL(fileURLWithPath: "/bin/echo")).runSync(["a/b\nc/d"])
+        precondition(nonEmptyLines(echoed) == ["a/b", "c/d"])
+        do { _ = try GitHubCLI(executable: URL(fileURLWithPath: "/bin/sleep")).runSync(["5"], timeout: 0.3); preconditionFailure("kein Timeout") }
+        catch { precondition(error as? GitHubError == .timedOut) }
+        do { _ = try GitHubCLI(executable: URL(fileURLWithPath: "/usr/bin/false")).runSync([]); preconditionFailure("kein Fehler") }
+        catch { precondition(error as? GitHubError == .failed("gh wurde mit Code 1 beendet.")) }
+        precondition(GitHubError.classify(exitCode: 4, stderr: "") == .notLoggedIn)
+        precondition(GitHubError.classify(exitCode: 1, stderr: "To get started with GitHub CLI, please run:  gh auth login") == .notLoggedIn)
         let original = Data("unlesbare Daten".utf8)
         try original.write(to: file)
         let corrupt = Store(file: file)
@@ -133,6 +143,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Löschen, Schutz beschädigter Daten")
     }
 }
