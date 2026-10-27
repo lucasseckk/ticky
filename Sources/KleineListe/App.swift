@@ -449,7 +449,6 @@ struct SettingsView: View {
     @ObservedObject var store: Store
     let onClose: () -> Void
     @State private var selectedTab = 0
-    @State private var selectedCustomPriorityID: UUID?
     @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
@@ -503,167 +502,135 @@ struct SettingsView: View {
             Group {
                 if selectedTab == 0 {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text("To-Do-Gruppen").font(.headline)
-                            ForEach(store.groups) { group in
+                        VStack(alignment: .leading, spacing: 12) {
+                            SettingsCard(title: "Gruppen", systemImage: "folder", subtitle: "Gruppen bündeln To-Dos mit gemeinsamen Notizen.") {
+                                ForEach(store.groups) { group in
+                                    SettingsItemRow(name: group.name, colorHex: group.colorHex, detail: nil) { store.deleteGroup(group) }
+                                }
+                                if store.groups.isEmpty {
+                                    Text("Noch keine Gruppen.").font(.caption).foregroundStyle(.secondary)
+                                }
                                 HStack {
-                                    Label(group.name, systemImage: "folder")
-                                    Spacer()
-                                    Button { store.deleteGroup(group) } label: {
-                                        Image(systemName: "trash")
-                                    }
-                                    .buttonStyle(.plain)
-                                    .foregroundStyle(.red)
-                                    .accessibilityLabel("Gruppe \(group.name) löschen")
+                                    TextField("Name der neuen Gruppe", text: $newGroupName)
+                                        .textFieldStyle(.roundedBorder)
+                                        .onSubmit(createGroup)
+                                    Button(action: createGroup) { Label("Anlegen", systemImage: "plus") }
+                                        .buttonStyle(.borderedProminent)
+                                        .disabled(newGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                                 }
                             }
-                            HStack {
-                                TextField("Neue Gruppe", text: $newGroupName)
-                                    .textFieldStyle(.roundedBorder)
-                                Button("Hinzufügen") {
-                                    store.createGroup(name: newGroupName)
-                                    newGroupName = ""
+                            SettingsCard(title: "Eigene Prioritäten", systemImage: "flag", subtitle: "Stufe 1 (niedrig) bis 5 (kritisch) bestimmt Sortierung und Erinnerungen.") {
+                                ForEach(store.customPriorities) { priority in
+                                    SettingsItemRow(name: priority.name, colorHex: priority.colorHex, detail: "Stufe \(priority.threatLevel)") { store.deleteCustomPriority(priority) }
                                 }
-                                .disabled(newGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            }
-                            Divider()
-                            Text("Eigene Prioritäten").font(.headline)
-                            ForEach(store.customPriorities) { priority in
+                                if store.customPriorities.isEmpty {
+                                    Text("Noch keine eigenen Prioritäten.").font(.caption).foregroundStyle(.secondary)
+                                }
                                 HStack {
-                                    Text(priority.name)
-                                    Spacer()
-                                    Text("Threat-Level \(priority.threatLevel)").font(.caption).foregroundStyle(.secondary)
-                                    Button { store.deleteCustomPriority(priority) } label: {
-                                        Image(systemName: "trash")
+                                    TextField("Name der neuen Priorität", text: $newPriorityName)
+                                        .textFieldStyle(.roundedBorder)
+                                        .onSubmit(createPriority)
+                                    Picker("Stufe", selection: $newPriorityThreatLevel) {
+                                        ForEach(1...5, id: \.self) { Text("Stufe \($0)").tag($0) }
                                     }
-                                    .buttonStyle(.plain)
-                                    .foregroundStyle(.red)
-                                    .accessibilityLabel("Custom-Priorität \(priority.name) löschen")
+                                    .labelsHidden()
+                                    .fixedSize()
+                                    Button(action: createPriority) { Label("Anlegen", systemImage: "plus") }
+                                        .buttonStyle(.borderedProminent)
+                                        .disabled(newPriorityName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                                 }
                             }
-                            HStack {
-                                TextField("Neue Priorität", text: $newPriorityName)
-                                    .textFieldStyle(.roundedBorder)
-                                Picker("Threat-Level", selection: $newPriorityThreatLevel) {
-                                    ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
-                                }
-                                .frame(width: 120)
-                                Button("Hinzufügen") {
-                                    store.createCustomPriority(name: newPriorityName, threatLevel: newPriorityThreatLevel)
-                                    newPriorityName = ""
-                                }
-                                .disabled(newPriorityName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                            }
-                            Spacer(minLength: 80)
                         }
-                        .padding(14)
+                        .padding(12)
                     }
                 } else if selectedTab == 1 {
                     ScrollView(.vertical) {
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Hintergrund").font(.headline)
-                            ColorSettingRow(label: "Farbe", hex: $backgroundColorHex)
-                            Divider()
-                            Text("Prioritätsfarben").font(.headline)
-                            ColorSettingRow(label: "Hoch", hex: $highPriorityColorHex)
-                            ColorSettingRow(label: "Mittel", hex: $mediumPriorityColorHex)
-                            ColorSettingRow(label: "Niedrig", hex: $lowPriorityColorHex)
-                            Divider()
-                            Text("Custom Prioritäten").font(.headline)
-                            Picker("Custom Prioritäten", selection: $selectedCustomPriorityID) {
-                                Text("Keine Auswahl").tag(Optional<UUID>.none)
+                            SettingsCard(title: "Hintergrund", systemImage: "paintpalette", subtitle: nil) {
+                                ColorSettingRow(label: "Farbe", hex: $backgroundColorHex)
+                            }
+                            SettingsCard(title: "Prioritätsfarben", systemImage: "flag", subtitle: nil) {
+                                ColorSettingRow(label: "Hoch", hex: $highPriorityColorHex)
+                                ColorSettingRow(label: "Mittel", hex: $mediumPriorityColorHex)
+                                ColorSettingRow(label: "Niedrig", hex: $lowPriorityColorHex)
                                 ForEach(store.customPriorities) { priority in
-                                    Text(priority.name).tag(Optional(priority.id))
+                                    ColorSettingRow(label: priority.name, hex: customPriorityColorBinding(for: priority.id))
                                 }
                             }
-                            if let selectedCustomPriorityID,
-                               store.customPriorities.contains(where: { $0.id == selectedCustomPriorityID }) {
-                                ColorSettingRow(label: "Farbe", hex: customPriorityColorBinding(for: selectedCustomPriorityID))
+                            SettingsCard(title: "Gruppenfarben", systemImage: "folder", subtitle: store.groups.isEmpty ? "Lege zuerst unter Allgemein eine Gruppe an." : nil) {
+                                ForEach(store.groups) { group in
+                                    ColorSettingRow(label: group.name, hex: groupColorBinding(for: group.id))
+                                }
                             }
-                            Divider()
-                            Text("Gruppen").font(.headline)
-                            ForEach(store.groups) { group in
-                                ColorSettingRow(label: group.name, hex: groupColorBinding(for: group.id))
-                            }
-                            if store.groups.isEmpty {
-                                Text("Lege zuerst unter Allgemein eine Gruppe an.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Divider()
-                            Text("Standardfarben").font(.headline)
-                            Text("Diese Farben werden beim Zurücksetzen verwendet.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            ColorSettingRow(label: "Hintergrund", hex: $defaultBackgroundHex)
-                            ColorSettingRow(label: "Hoch", hex: $defaultHighHex)
-                            ColorSettingRow(label: "Mittel", hex: $defaultMediumHex)
-                            ColorSettingRow(label: "Niedrig", hex: $defaultLowHex)
-                            Button("Auf Standard zurücksetzen") {
-                                backgroundColorHex = defaultBackgroundHex
-                                highPriorityColorHex = defaultHighHex
-                                mediumPriorityColorHex = defaultMediumHex
-                                lowPriorityColorHex = defaultLowHex
+                            SettingsCard(title: "Standardfarben", systemImage: "arrow.counterclockwise", subtitle: "Diese Farben werden beim Zurücksetzen verwendet.") {
+                                ColorSettingRow(label: "Hintergrund", hex: $defaultBackgroundHex)
+                                ColorSettingRow(label: "Hoch", hex: $defaultHighHex)
+                                ColorSettingRow(label: "Mittel", hex: $defaultMediumHex)
+                                ColorSettingRow(label: "Niedrig", hex: $defaultLowHex)
+                                Button("Auf Standard zurücksetzen") {
+                                    backgroundColorHex = defaultBackgroundHex
+                                    highPriorityColorHex = defaultHighHex
+                                    mediumPriorityColorHex = defaultMediumHex
+                                    lowPriorityColorHex = defaultLowHex
+                                }
                             }
                         }
-                        .padding(14)
+                        .padding(12)
                     }
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 14) {
-                            Text("Benachrichtigungen").font(.headline)
-                            Toggle("System-Push und Banner", isOn: $notificationsEnabled)
-                                .onChange(of: notificationsEnabled) { _, enabled in
-                                    if enabled {
-                                        NotificationManager.shared.requestAuthorization { granted in
-                                            DispatchQueue.main.async {
-                                                notificationsEnabled = granted
-                                                notificationPermissionDenied = !granted
-                                                notificationError = granted ? nil : "macOS hat die Benachrichtigungsberechtigung nicht erteilt."
-                                                rescheduleNotifications()
+                        VStack(alignment: .leading, spacing: 12) {
+                            SettingsCard(title: "Benachrichtigungen", systemImage: "bell", subtitle: nil) {
+                                Toggle("System-Push und Banner", isOn: $notificationsEnabled)
+                                    .onChange(of: notificationsEnabled) { _, enabled in
+                                        if enabled {
+                                            NotificationManager.shared.requestAuthorization { granted in
+                                                DispatchQueue.main.async {
+                                                    notificationsEnabled = granted
+                                                    notificationPermissionDenied = !granted
+                                                    notificationError = granted ? nil : "macOS hat die Benachrichtigungsberechtigung nicht erteilt."
+                                                    rescheduleNotifications()
+                                                }
                                             }
+                                        } else {
+                                            rescheduleNotifications()
                                         }
-                                    } else {
-                                        rescheduleNotifications()
+                                    }
+                                Toggle("Ton abspielen", isOn: $notificationSound)
+                                Toggle("Animiertes Pop-up beim Öffnen", isOn: $animatedNotificationPopup)
+                                Button("Testbenachrichtigung senden") {
+                                    notificationError = "Testbenachrichtigung wird gesendet …"
+                                    NotificationManager.shared.sendTestNotification { error in
+                                        DispatchQueue.main.async {
+                                            notificationError = error ?? "Testbenachrichtigung wurde eingeplant."
+                                        }
                                     }
                                 }
-                            Toggle("Ton abspielen", isOn: $notificationSound)
-                            Toggle("Animiertes Pop-up beim Öffnen", isOn: $animatedNotificationPopup)
-                            Divider()
-                            Text("Automatische Erinnerungen").font(.headline)
-                            Picker("Hohe Priorität", selection: $highPriorityLeadMinutes) {
-                                reminderLeadOptions
-                            }
-                            Picker("Mittlere Priorität", selection: $mediumPriorityLeadMinutes) {
-                                reminderLeadOptions
-                            }
-                            Picker("Niedrige Priorität täglich", selection: $lowPriorityReminderHour) {
-                                ForEach(6...22, id: \.self) { hour in Text(String(format: "%02d:00", hour)).tag(hour) }
-                            }
-                            Text("Threat-Level 4–5 folgt Hoch, 2–3 Mittel und 1 Niedrig.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Button("Testbenachrichtigung senden") {
-                                notificationError = "Testbenachrichtigung wird gesendet …"
-                                NotificationManager.shared.sendTestNotification { error in
-                                    DispatchQueue.main.async {
-                                        notificationError = error ?? "Testbenachrichtigung wurde eingeplant."
+                                if notificationPermissionDenied {
+                                    Button("Mitteilungen in Systemeinstellungen öffnen") {
+                                        guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings") else { return }
+                                        NSWorkspace.shared.open(url)
                                     }
                                 }
-                            }
-                            if notificationPermissionDenied {
-                                Button("Mitteilungen in Systemeinstellungen öffnen") {
-                                    guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings") else { return }
-                                    NSWorkspace.shared.open(url)
+                                if let notificationError {
+                                    Text(notificationError)
+                                        .font(.caption)
+                                        .foregroundStyle(notificationError.contains("wurde") ? .green : .secondary)
                                 }
                             }
-                            if let notificationError {
-                                Text(notificationError)
-                                    .font(.caption)
-                                    .foregroundStyle(notificationError.contains("wurde") ? .green : .secondary)
+                            SettingsCard(title: "Automatische Erinnerungen", systemImage: "clock", subtitle: "Eigene Prioritäten: Stufe 4–5 folgt Hoch, 2–3 Mittel und 1 Niedrig.") {
+                                Picker("Hohe Priorität", selection: $highPriorityLeadMinutes) {
+                                    reminderLeadOptions
+                                }
+                                Picker("Mittlere Priorität", selection: $mediumPriorityLeadMinutes) {
+                                    reminderLeadOptions
+                                }
+                                Picker("Niedrige Priorität täglich", selection: $lowPriorityReminderHour) {
+                                    ForEach(6...22, id: \.self) { hour in Text(String(format: "%02d:00", hour)).tag(hour) }
+                                }
                             }
                         }
-                        .padding(14)
+                        .padding(12)
                         .onChange(of: notificationSound) { _, _ in rescheduleNotifications() }
                         .onChange(of: highPriorityLeadMinutes) { _, _ in rescheduleNotifications() }
                         .onChange(of: mediumPriorityLeadMinutes) { _, _ in rescheduleNotifications() }
@@ -674,7 +641,9 @@ struct SettingsView: View {
             }
             .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
             .foregroundStyle(settingsText)
-            .frame(maxWidth: .infinity, minHeight: 320, maxHeight: 320, alignment: .topLeading)
+            // System controls must match the contrasting surface, not the system appearance.
+            .environment(\.colorScheme, backgroundIsDark ? .light : .dark)
+            .frame(maxWidth: .infinity, minHeight: 400, maxHeight: 400, alignment: .topLeading)
             .background(settingsSurface, in: RoundedRectangle(cornerRadius: 10))
         }
     }
@@ -682,6 +651,16 @@ struct SettingsView: View {
     @State private var newGroupName = ""
     @State private var newPriorityName = ""
     @State private var newPriorityThreatLevel = 3
+
+    private func createGroup() {
+        store.createGroup(name: newGroupName)
+        newGroupName = ""
+    }
+
+    private func createPriority() {
+        store.createCustomPriority(name: newPriorityName, threatLevel: newPriorityThreatLevel)
+        newPriorityName = ""
+    }
 
     private func customPriorityColorBinding(for id: UUID) -> Binding<String> {
         Binding(
@@ -731,6 +710,56 @@ struct SettingsView: View {
         }
     }
 
+}
+
+struct SettingsCard<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let subtitle: String?
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: systemImage).font(.headline)
+            if let subtitle {
+                Text(subtitle).font(.caption).foregroundStyle(.secondary)
+            }
+            content
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.foreground.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.foreground.opacity(0.18)))
+    }
+}
+
+struct SettingsItemRow: View {
+    let name: String
+    let colorHex: String
+    let detail: String?
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Circle().fill(Color(hex: colorHex)).frame(width: 12, height: 12)
+            Text(name)
+            Spacer()
+            if let detail {
+                Text(detail)
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.foreground.opacity(0.1), in: Capsule())
+            }
+            Button(action: onDelete) { Image(systemName: "trash") }
+                .buttonStyle(.plain)
+                .foregroundStyle(.red)
+                .accessibilityLabel("\(name) löschen")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(.foreground.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+    }
 }
 
 struct ColorSettingRow: View {
