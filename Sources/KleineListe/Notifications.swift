@@ -8,9 +8,52 @@ final class NotificationAppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// One source for banner and pop-up wording, so both always say the same thing.
+enum NotificationKind: String {
+    case test, dueSoon, overdue, daily
+
+    var headline: String {
+        switch self {
+        case .test: return "Testmitteilung"
+        case .dueSoon: return "Bald fällig"
+        case .overdue: return "Jetzt fällig"
+        case .daily: return "Täglicher Überblick"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .test: return "👋"
+        case .dueSoon: return "⏰"
+        case .overdue: return "🚨"
+        case .daily: return "☀️"
+        }
+    }
+    var tint: Color {
+        switch self {
+        case .test: return .green
+        case .dueSoon: return .orange
+        case .overdue: return .red
+        case .daily: return .blue
+        }
+    }
+}
+
+enum NotificationPermission {
+    case allowed, denied, notDetermined
+    init(_ status: UNAuthorizationStatus) {
+        switch status {
+        case .authorized, .provisional, .ephemeral: self = .allowed
+        case .denied: self = .denied
+        default: self = .notDetermined
+        }
+    }
+}
+
 final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = NotificationManager()
     private let center = UNUserNotificationCenter.current()
+    private let queue = DispatchQueue(label: "notification-scheduling")
+    private var generation = 0
 
     func configure() {
         center.delegate = self
@@ -20,22 +63,43 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in completion(granted) }
     }
 
-    func authorizationStatus(completion: @escaping @Sendable (UNAuthorizationStatus) -> Void) {
-        center.getNotificationSettings { settings in completion(settings.authorizationStatus) }
+    func permission(completion: @escaping @Sendable (NotificationPermission) -> Void) {
+        center.getNotificationSettings { settings in completion(NotificationPermission(settings.authorizationStatus)) }
     }
 
     func reschedule(todos: [Todo], customPriorities: [CustomPriority]) {
-        center.removeAllPendingNotificationRequests()
-        guard UserDefaults.standard.bool(forKey: "notificationsEnabled") else { return }
+        // Only the newest call may schedule; an older, slower call would otherwise re-add reminders for deleted or finished to-dos.
+        let current = queue.sync { generation += 1; return generation }
         center.getNotificationSettings { [weak self] settings in
-            guard let self, settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
-            let openTodos = todos.filter { !$0.done || $0.repeatRule != .none }
-            for todo in openTodos {
-                self.schedule(todo: todo, customPriorities: customPriorities)
+            guard let self else { return }
+            self.queue.sync {
+                guard current == self.generation else { return }
+                self.center.removeAllPendingNotificationRequests()
+                let openTodos = todos.filter { !$0.done || $0.repeatRule != .none }
+                self.removeDelivered(keeping: Set(openTodos.map(\.id)))
+                guard UserDefaults.standard.bool(forKey: "notificationsEnabled"),
+                      NotificationPermission(settings.authorizationStatus) == .allowed else { return }
+                self.scheduleAll(openTodos, customPriorities: customPriorities)
             }
-            if openTodos.contains(where: { self.isLowPriority($0, customPriorities: customPriorities) }) {
-                self.scheduleDailyLowPrioritySummary()
+        }
+    }
+
+    private func removeDelivered(keeping openIDs: Set<UUID>) {
+        center.getDeliveredNotifications { [weak self] delivered in
+            let stale = delivered.filter { notification in
+                guard let id = UUID(uuidString: notification.request.content.userInfo["todoID"] as? String ?? "") else { return false }
+                return !openIDs.contains(id)
             }
+            self?.center.removeDeliveredNotifications(withIdentifiers: stale.map(\.request.identifier))
+        }
+    }
+
+    private func scheduleAll(_ openTodos: [Todo], customPriorities: [CustomPriority]) {
+        for todo in openTodos {
+            schedule(todo: todo, customPriorities: customPriorities)
+        }
+        if openTodos.contains(where: { isLowPriority($0, customPriorities: customPriorities) }) {
+            scheduleDailyLowPrioritySummary()
         }
     }
 
@@ -59,7 +123,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
     }
 
     private func enqueueTestNotification(completion: @escaping @Sendable (String?) -> Void) {
-        let content = content(subtitle: "Testmitteilung", body: "Deine Erinnerungen funktionieren.", kind: "dueSoon", todoID: nil, todoTitle: "Test-To-Do")
+        let content = content(subtitle: NotificationKind.test.headline, body: "Deine Erinnerungen funktionieren.", kind: .test, todoID: nil, todoTitle: "Deine Erinnerungen funktionieren.")
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         center.add(UNNotificationRequest(identifier: "test-notification", content: content, trigger: trigger)) { error in
             completion(error?.localizedDescription)
@@ -70,12 +134,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         guard let due = todo.due else { return }
         let leadMinutes = automaticLeadMinutes(for: todo, customPriorities: customPriorities)
         if let leadMinutes {
-            add(todo: todo, fireDate: due.addingTimeInterval(TimeInterval(-leadMinutes * 60)), identifier: "lead", kind: "dueSoon", remainingMinutes: leadMinutes)
+            add(todo: todo, fireDate: due.addingTimeInterval(TimeInterval(-leadMinutes * 60)), identifier: "lead", kind: .dueSoon, remainingMinutes: leadMinutes)
         }
         if todo.extraReminder != .none, todo.extraReminder.rawValue != leadMinutes {
-            add(todo: todo, fireDate: due.addingTimeInterval(TimeInterval(-todo.extraReminder.rawValue * 60)), identifier: "extra", kind: "dueSoon", remainingMinutes: todo.extraReminder.rawValue)
+            add(todo: todo, fireDate: due.addingTimeInterval(TimeInterval(-todo.extraReminder.rawValue * 60)), identifier: "extra", kind: .dueSoon, remainingMinutes: todo.extraReminder.rawValue)
         }
-        add(todo: todo, fireDate: due, identifier: "due", kind: "overdue", remainingMinutes: 0)
+        add(todo: todo, fireDate: due, identifier: "due", kind: .overdue, remainingMinutes: 0)
     }
 
     private func automaticLeadMinutes(for todo: Todo, customPriorities: [CustomPriority]) -> Int? {
@@ -99,11 +163,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         return todo.priority == .low
     }
 
-    private func add(todo: Todo, fireDate: Date, identifier: String, kind: String, remainingMinutes: Int) {
+    private func add(todo: Todo, fireDate: Date, identifier: String, kind: NotificationKind, remainingMinutes: Int) {
         if todo.repeatRule == .none, fireDate <= Date() { return }
         let content = content(
-            subtitle: kind == "overdue" ? "Jetzt fällig" : "Bald fällig · noch \(durationText(remainingMinutes))",
-            body: kind == "overdue" ? "„\(todo.title)“ ist jetzt fällig." : "„\(todo.title)“ läuft bald ab.",
+            subtitle: kind == .overdue ? kind.headline : "\(kind.headline) · noch \(durationText(remainingMinutes))",
+            body: kind == .overdue ? "„\(todo.title)“ ist jetzt fällig." : "„\(todo.title)“ ist in \(durationText(remainingMinutes)) fällig.",
             kind: kind,
             todoID: todo.id,
             todoTitle: todo.title
@@ -138,17 +202,17 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         var components = DateComponents()
         components.hour = UserDefaults.standard.integer(forKey: "lowPriorityReminderHour").nonZero(or: 9)
         components.minute = 0
-        let content = content(subtitle: "Täglicher Überblick", body: "Du hast noch niedrig priorisierte To-Dos offen.", kind: "daily", todoID: nil, todoTitle: "Täglicher Überblick")
+        let content = content(subtitle: NotificationKind.daily.headline, body: "Du hast noch niedrig priorisierte To-Dos offen.", kind: .daily, todoID: nil, todoTitle: "Du hast noch niedrig priorisierte To-Dos offen.")
         center.add(UNNotificationRequest(identifier: "daily-low-priority-summary", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
     }
 
-    private func content(subtitle: String, body: String, kind: String, todoID: UUID?, todoTitle: String) -> UNMutableNotificationContent {
+    private func content(subtitle: String, body: String, kind: NotificationKind, todoID: UUID?, todoTitle: String) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
         content.title = "To-Do List"
         content.subtitle = subtitle
         content.body = body
         if UserDefaults.standard.object(forKey: "notificationSound") as? Bool ?? true { content.sound = .default }
-        content.userInfo = ["kind": kind, "todoID": todoID?.uuidString ?? "", "todoTitle": todoTitle]
+        content.userInfo = ["kind": kind.rawValue, "todoID": todoID?.uuidString ?? "", "todoTitle": todoTitle]
         return content
     }
 
@@ -166,7 +230,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let content = response.notification.request.content
-        let kind = content.userInfo["kind"] as? String ?? "dueSoon"
+        let kind = NotificationKind(rawValue: content.userInfo["kind"] as? String ?? "") ?? .dueSoon
         let title = content.userInfo["todoTitle"] as? String ?? content.body
         if UserDefaults.standard.object(forKey: "animatedNotificationPopup") as? Bool ?? true {
             DispatchQueue.main.async {
@@ -181,13 +245,14 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
     static let shared = NotificationPopupPresenter()
     private var panel: NSPanel?
 
-    func show(title: String, kind: String) {
+    func show(title: String, kind: NotificationKind) {
         let panel = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 360, height: 220), styleMask: [.titled, .closable, .fullSizeContentView], backing: .buffered, defer: false)
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.center()
+        self.panel?.close()
         panel.contentView = NSHostingView(rootView: NotificationPopupView(title: title, kind: kind) { panel.close() })
         self.panel = panel
         NSApp.activate(ignoringOtherApps: true)
@@ -197,25 +262,25 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
 
 private struct NotificationPopupView: View {
     let title: String
-    let kind: String
+    let kind: NotificationKind
     let close: () -> Void
     @State private var animate = false
 
     var body: some View {
         VStack(spacing: 14) {
-            Text(kind == "overdue" ? "😭" : "⏰")
+            Text(kind.symbol)
                 .font(.system(size: 54))
-                .rotationEffect(.degrees(kind == "dueSoon" ? (animate ? 7 : -7) : 0))
-                .offset(y: kind == "overdue" ? (animate ? 5 : -3) : 0)
-            Text(kind == "overdue" ? "To-Do verpasst" : "Gleich ist es so weit")
+                .rotationEffect(.degrees(kind == .dueSoon ? (animate ? 7 : -7) : 0))
+                .offset(y: kind == .overdue ? (animate ? 5 : -3) : 0)
+            Text(kind.headline)
                 .font(.title2.bold())
-                .foregroundStyle(kind == "dueSoon" ? .red : .blue)
+                .foregroundStyle(kind.tint)
             Text(title).multilineTextAlignment(.center)
-            Button("Verstanden", action: close).buttonStyle(.borderedProminent)
+            Button("Verstanden", action: close).buttonStyle(.borderedProminent).tint(kind.tint)
         }
         .padding(22)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(kind == "dueSoon" ? Color.red.opacity(0.14) : Color.blue.opacity(0.12))
+        .background(kind.tint.opacity(0.12))
         .onAppear { animate = true }
         .animation(.easeInOut(duration: 0.13).repeatCount(8, autoreverses: true), value: animate)
     }

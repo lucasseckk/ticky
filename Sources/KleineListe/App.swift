@@ -463,8 +463,8 @@ struct SettingsView: View {
     @AppStorage("highPriorityLeadMinutes") private var highPriorityLeadMinutes = 30
     @AppStorage("mediumPriorityLeadMinutes") private var mediumPriorityLeadMinutes = 120
     @AppStorage("lowPriorityReminderHour") private var lowPriorityReminderHour = 9
-    @State private var notificationError: String?
-    @State private var notificationPermissionDenied = false
+    @State private var notificationPermission: NotificationPermission?
+    @State private var testResult: (text: String, success: Bool)?
 
     private var backgroundIsDark: Bool {
         let cleaned = backgroundColorHex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -581,41 +581,42 @@ struct SettingsView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             SettingsCard(title: "Benachrichtigungen", systemImage: "bell", subtitle: nil) {
+                                Label(notificationStatus.text, systemImage: notificationStatus.icon)
+                                    .font(.callout.weight(.medium))
+                                    .foregroundStyle(notificationStatus.color)
+                                if notificationPermission == .denied {
+                                    Button("Mitteilungen in Systemeinstellungen öffnen") {
+                                        guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings") else { return }
+                                        NSWorkspace.shared.open(url)
+                                    }
+                                }
                                 Toggle("System-Push und Banner", isOn: $notificationsEnabled)
                                     .onChange(of: notificationsEnabled) { _, enabled in
                                         if enabled {
-                                            NotificationManager.shared.requestAuthorization { granted in
-                                                DispatchQueue.main.async {
-                                                    notificationsEnabled = granted
-                                                    notificationPermissionDenied = !granted
-                                                    notificationError = granted ? nil : "macOS hat die Benachrichtigungsberechtigung nicht erteilt."
-                                                    rescheduleNotifications()
-                                                }
+                                            NotificationManager.shared.requestAuthorization { _ in
+                                                DispatchQueue.main.async { refreshNotificationPermission() }
                                             }
                                         } else {
                                             rescheduleNotifications()
                                         }
                                     }
                                 Toggle("Ton abspielen", isOn: $notificationSound)
-                                Toggle("Animiertes Pop-up beim Öffnen", isOn: $animatedNotificationPopup)
-                                Button("Testbenachrichtigung senden") {
-                                    notificationError = "Testbenachrichtigung wird gesendet …"
-                                    NotificationManager.shared.sendTestNotification { error in
-                                        DispatchQueue.main.async {
-                                            notificationError = error ?? "Testbenachrichtigung wurde eingeplant."
+                                Toggle("Animiertes Pop-up beim Klick auf eine Mitteilung", isOn: $animatedNotificationPopup)
+                                HStack {
+                                    Button("Testbenachrichtigung senden") {
+                                        testResult = ("Wird gesendet …", true)
+                                        NotificationManager.shared.sendTestNotification { error in
+                                            DispatchQueue.main.async {
+                                                testResult = error.map { ($0, false) } ?? ("Gesendet – erscheint in etwa 1 Sekunde.", true)
+                                                refreshNotificationPermission()
+                                            }
                                         }
                                     }
-                                }
-                                if notificationPermissionDenied {
-                                    Button("Mitteilungen in Systemeinstellungen öffnen") {
-                                        guard let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings") else { return }
-                                        NSWorkspace.shared.open(url)
+                                    if let testResult {
+                                        Label(testResult.text, systemImage: testResult.success ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(testResult.success ? Color.green : Color.red)
                                     }
-                                }
-                                if let notificationError {
-                                    Text(notificationError)
-                                        .font(.caption)
-                                        .foregroundStyle(notificationError.contains("wurde") ? .green : .secondary)
                                 }
                             }
                             SettingsCard(title: "Automatische Erinnerungen", systemImage: "clock", subtitle: "Eigene Prioritäten: Stufe 4–5 folgt Hoch, 2–3 Mittel und 1 Niedrig.") {
@@ -635,7 +636,7 @@ struct SettingsView: View {
                         .onChange(of: highPriorityLeadMinutes) { _, _ in rescheduleNotifications() }
                         .onChange(of: mediumPriorityLeadMinutes) { _, _ in rescheduleNotifications() }
                         .onChange(of: lowPriorityReminderHour) { _, _ in rescheduleNotifications() }
-                        .onAppear { syncNotificationPermission() }
+                        .onAppear { refreshNotificationPermission() }
                     }
                 }
             }
@@ -697,16 +698,24 @@ struct SettingsView: View {
         NotificationManager.shared.reschedule(todos: store.todos, customPriorities: store.customPriorities)
     }
 
-    private func syncNotificationPermission() {
-        guard notificationsEnabled else { return }
-        NotificationManager.shared.authorizationStatus { status in
-            if status == .denied {
-                DispatchQueue.main.async {
-                    notificationsEnabled = false
-                    notificationPermissionDenied = true
-                    notificationError = "macOS blockiert Benachrichtigungen für To-Do List."
-                }
+    private func refreshNotificationPermission() {
+        NotificationManager.shared.permission { permission in
+            DispatchQueue.main.async {
+                notificationPermission = permission
+                if permission == .denied { notificationsEnabled = false }
+                rescheduleNotifications()
             }
+        }
+    }
+
+    private var notificationStatus: (text: String, icon: String, color: Color) {
+        switch notificationPermission {
+        case nil: return ("Status wird geprüft …", "hourglass", .secondary)
+        case .denied: return ("Von macOS blockiert", "bell.slash.fill", .red)
+        case .notDetermined: return ("Noch nicht erlaubt – wird beim Einschalten abgefragt", "bell.badge", .orange)
+        case .allowed: return notificationsEnabled
+            ? ("Aktiv – Erinnerungen werden geplant", "bell.fill", .green)
+            : ("Erlaubt, aber ausgeschaltet", "bell", .secondary)
         }
     }
 
