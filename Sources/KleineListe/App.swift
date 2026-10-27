@@ -60,7 +60,7 @@ struct Panel: View {
     private var lowPriorityColor: Color { Color(hex: lowPriorityColorHex) }
     private var items: [Todo] {
         let manualOrder = Dictionary(uniqueKeysWithValues: store.todos.enumerated().map { ($1.id, $0) })
-        return store.todos.filter { $0.archived == showArchive && filter.matches($0) && (showArchive || matchesStatus($0)) }.sorted {
+        return store.todos.filter { (showArchive ? $0.showsInArchive : !$0.archived) && filter.matches($0) && (showArchive || matchesStatus($0)) }.sorted {
             if $0.done != $1.done { return !$0.done }
             if manualSort { return manualOrder[$0.id, default: 0] < manualOrder[$1.id, default: 0] }
             if priorityLevel($0) != priorityLevel($1) { return priorityLevel($0) > priorityLevel($1) }
@@ -397,7 +397,7 @@ struct Panel: View {
             Text("Archiv").font(.headline)
             Text("\(items.count)").font(.caption).foregroundStyle(.secondary)
             Spacer()
-            if store.todos.contains(where: \.archived) {
+            if store.todos.contains(where: \.showsInArchive) {
                 Button(confirmClearArchive ? "Wirklich alle löschen?" : "Archiv leeren") {
                     if confirmClearArchive {
                         withAnimation { store.clearArchive() }
