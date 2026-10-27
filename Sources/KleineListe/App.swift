@@ -10,7 +10,7 @@ import AppKit
         MenuBarExtra {
             Panel(store: store, dev: dev)
         } label: {
-            Image(systemName: store.count == 0 ? "checkmark.circle" : "checklist")
+            Image(nsImage: ClockIcon.menuImage(completed: store.count == 0))
                 .accessibilityLabel("To-Do List: \(store.count) offene To-Dos")
         }.menuBarExtraStyle(.window)
     }

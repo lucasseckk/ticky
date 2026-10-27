@@ -54,3 +54,12 @@ Es werden keine Zugangsdaten, API-Schlüssel oder Kontoinformationen im Projekt 
 - `Checks/` – kleiner persistenzbezogener Regressionstest
 - `build.command` – lokaler Release-Build
 - `check.command` – Regressionstest
+
+### Icons
+
+Die Menüleiste zeigt eine eigene Uhr mit Gesicht: lächelnd, wenn alles erledigt ist,
+sonst neutral. Das Template-Bild passt sich dem hellen und dunklen macOS-Modus an.
+`Resources/AppIcon.icns` enthält das passende farbige Finder-Icon.
+Die gemeinsame Vektorgrafik liegt in `Sources/KleineListe/ClockIcon.swift`.
+Nach Änderungen erzeugt `zsh check.command` die PNG-Auflösungen neu; das App-Icon
+lässt sich anschließend mit `iconutil -c icns .build/AppIcon.iconset -o Resources/AppIcon.icns` aktualisieren.
