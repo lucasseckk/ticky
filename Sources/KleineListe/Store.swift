@@ -90,14 +90,18 @@ struct Todo: Identifiable, Codable, Sendable {
     var done = false
     var archived = false
     var created = Date()
+    /// Dev to-dos live only in the Dev section (#49), not in the normal list.
+    var isDev = false
+    /// For example the pull request a dev to-do was created from.
+    var link: URL?
 
     /// Only finished one-off to-dos may be archived; a recurring one would silently stop coming back.
-    var canArchive: Bool { done && repeatRule == .none }
+    var canArchive: Bool { done && repeatRule == .none && !isDev }
     /// The archive shows every finished one-off to-do, explicitly archived or not.
     var showsInArchive: Bool { archived || canArchive }
 
-    enum CodingKeys: String, CodingKey { case id, title, priority, due, repeatRule, repeatDays, groupID, customPriorityID, extraReminder, done, archived, created }
-    init(title: String, priority: Priority = .normal, due: Date? = nil, repeatRule: RepeatRule = .none, repeatDays: Set<Weekday> = [], groupID: UUID? = nil, customPriorityID: UUID? = nil, extraReminder: ReminderOffset = .none, done: Bool = false, created: Date = Date()) {
+    enum CodingKeys: String, CodingKey { case id, title, priority, due, repeatRule, repeatDays, groupID, customPriorityID, extraReminder, done, archived, created, isDev, link }
+    init(title: String, priority: Priority = .normal, due: Date? = nil, repeatRule: RepeatRule = .none, repeatDays: Set<Weekday> = [], groupID: UUID? = nil, customPriorityID: UUID? = nil, extraReminder: ReminderOffset = .none, done: Bool = false, created: Date = Date(), isDev: Bool = false, link: URL? = nil) {
         self.title = title
         self.priority = priority
         self.due = due
@@ -108,6 +112,8 @@ struct Todo: Identifiable, Codable, Sendable {
         self.extraReminder = extraReminder
         self.done = done
         self.created = created
+        self.isDev = isDev
+        self.link = link
     }
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -123,6 +129,8 @@ struct Todo: Identifiable, Codable, Sendable {
         done = try container.decode(Bool.self, forKey: .done)
         archived = try container.decodeIfPresent(Bool.self, forKey: .archived) ?? false
         created = try container.decode(Date.self, forKey: .created)
+        isDev = try container.decodeIfPresent(Bool.self, forKey: .isDev) ?? false
+        link = try container.decodeIfPresent(URL.self, forKey: .link)
     }
 }
 enum PriorityChoice: Hashable, Sendable {
@@ -291,7 +299,7 @@ struct UndoStep: Identifiable {
         if let data = try? Data(contentsOf: groupsFile) { groups = (try? JSONDecoder().decode([TodoGroup].self, from: data)) ?? [] }
         if let data = try? Data(contentsOf: prioritiesFile) { customPriorities = (try? JSONDecoder().decode([CustomPriority].self, from: data)) ?? [] }
     }
-    var count: Int { todos.filter { !$0.done }.count }
+    var count: Int { todos.filter { !$0.done && !$0.isDev }.count }
     func save(_ item: Todo) {
         guard writable else { return }
         var item = item

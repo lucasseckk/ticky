@@ -91,6 +91,15 @@ import Foundation
         archive.undo()
         precondition(Store(file: file).todos.contains { $0.id == once.id && $0.showsInArchive })
         [once, weekly, open].forEach(archive.delete)
+        let devStore = Store(file: file)
+        let devTodo = Todo(title: "Review: Fix (b #7)", priority: .high, done: true, isDev: true, link: URL(string: "https://github.com/a/b/pull/7"))
+        devStore.save(devTodo)
+        let devLoaded = Store(file: file).todos.first { $0.id == devTodo.id }
+        precondition(devLoaded?.isDev == true && devLoaded?.link?.absoluteString == "https://github.com/a/b/pull/7")
+        precondition(devLoaded?.canArchive == false && devLoaded?.showsInArchive == false)
+        devStore.toggle(devTodo)
+        precondition(devStore.count == 0)
+        devStore.delete(devTodo)
         let source = Store(file: directory.appendingPathComponent("quelle/todos.json"))
         source.createGroup(name: "Uni")
         source.updateGroup({ var g = source.groups[0]; g.notes = "Raum 101"; return g }())
@@ -158,6 +167,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Dev-To-dos, Löschen, Schutz beschädigter Daten")
     }
 }

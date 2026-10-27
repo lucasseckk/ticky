@@ -63,7 +63,7 @@ struct Panel: View {
     private var lowPriorityColor: Color { Color(hex: lowPriorityColorHex) }
     private var items: [Todo] {
         let manualOrder = Dictionary(uniqueKeysWithValues: store.todos.enumerated().map { ($1.id, $0) })
-        return store.todos.filter { (showArchive ? $0.showsInArchive : !$0.archived) && filter.matches($0) && (showArchive || matchesStatus($0)) }.sorted {
+        return store.todos.filter { !$0.isDev && (showArchive ? $0.showsInArchive : !$0.archived) && filter.matches($0) && (showArchive || matchesStatus($0)) }.sorted {
             if $0.done != $1.done { return !$0.done }
             if manualSort { return manualOrder[$0.id, default: 0] < manualOrder[$1.id, default: 0] }
             if priorityLevel($0) != priorityLevel($1) { return priorityLevel($0) > priorityLevel($1) }
@@ -124,7 +124,7 @@ struct Panel: View {
             if showSettings {
                 SettingsView(store: store, dev: dev, onClose: { withAnimation(.island) { showSettings = false } })
             } else if section == .dev {
-                DevView(dev: dev, openSettings: { withAnimation(.island) { showSettings = true } })
+                DevView(dev: dev, store: store, openSettings: { withAnimation(.island) { showSettings = true } })
             } else {
             if draft == nil {
                 Button(action: openNewEditor) {
@@ -244,7 +244,7 @@ struct Panel: View {
     }
     private var overdueCount: Int {
         let now = Date()
-        return store.todos.filter { !$0.done && !$0.archived && ($0.due.map { $0 < now } ?? false) }.count
+        return store.todos.filter { !$0.done && !$0.archived && !$0.isDev && ($0.due.map { $0 < now } ?? false) }.count
     }
     private var statusPill: some View {
         HStack(spacing: 6) {
