@@ -63,7 +63,7 @@ struct Panel: View {
     private var lowPriorityColor: Color { Color(hex: lowPriorityColorHex) }
     private var items: [Todo] {
         let manualOrder = Dictionary(uniqueKeysWithValues: store.todos.enumerated().map { ($1.id, $0) })
-        return store.todos.filter { (showArchive ? $0.showsInArchive : !$0.archived) && filter.matches($0) && (showArchive || matchesStatus($0)) }.sorted {
+        return store.todos.filter { !$0.isDev && (showArchive ? $0.showsInArchive : !$0.archived) && filter.matches($0) && (showArchive || matchesStatus($0)) }.sorted {
             if $0.done != $1.done { return !$0.done }
             if manualSort { return manualOrder[$0.id, default: 0] < manualOrder[$1.id, default: 0] }
             if priorityLevel($0) != priorityLevel($1) { return priorityLevel($0) > priorityLevel($1) }
@@ -100,93 +100,60 @@ struct Panel: View {
         if let customID = todo.customPriorityID, let custom = store.customPriorities.first(where: { $0.id == customID }) { return Color(hex: custom.colorHex) }
         return todo.priority.cardColor(high: highPriorityColor, medium: mediumPriorityColor, low: lowPriorityColor)
     }
-    private func borderColor(for todo: Todo) -> Color {
-        if let customID = todo.customPriorityID, let custom = store.customPriorities.first(where: { $0.id == customID }) { return Color(hex: custom.colorHex).opacity(0.72) }
-        return todo.priority.borderColor(high: highPriorityColor, medium: mediumPriorityColor, low: lowPriorityColor)
-    }
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("To-Do List").font(.title2.bold())
-                    Text(store.count == 0 ? "Alles erledigt." : "\(store.count) To-Dos offen").font(.caption).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                statusPill
+                Spacer(minLength: 4)
+                if section == .todos && !showSettings && draft == nil {
+                    IslandIconButton(systemImage: "magnifyingglass", isOn: showSearch, label: showSearch ? "Suche schließen" : "To-Dos suchen und filtern", action: toggleSearch)
+                    IslandIconButton(systemImage: "archivebox", isOn: showArchive, label: showArchive ? "Zurück zur Liste" : "Archiv erledigter To-Dos") {
+                        withAnimation(.island) { showArchive.toggle(); confirmClearArchive = false }
+                    }
+                    IslandIconButton(systemImage: "calendar", isOn: dueView, label: dueView ? "Nach Gruppen anzeigen" : "Nach Fälligkeit anzeigen: Überfällig, Heute, Morgen …") {
+                        withAnimation(.island) { dueView.toggle() }
+                    }
                 }
-                Spacer()
-                if section == .todos && !showSettings {
-                Button(action: toggleSearch) {
-                    Image(systemName: "magnifyingglass").font(.title3)
-                        .foregroundStyle(showSearch ? Color.accentColor : Color.primary)
+                IslandIconButton(systemImage: "gearshape", isOn: showSettings, label: "Einstellungen") {
+                    withAnimation(.island) { showSettings.toggle() }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(showSearch ? "Suche schließen" : "Suche öffnen")
-                .help(showSearch ? "Suche schließen" : "To-Dos suchen und filtern")
-                Button { withAnimation(.easeOut(duration: 0.2)) { showArchive.toggle(); confirmClearArchive = false } } label: {
-                    Image(systemName: showArchive ? "archivebox.fill" : "archivebox").font(.title3)
-                        .foregroundStyle(showArchive ? Color.accentColor : Color.primary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(showArchive ? "Archiv schließen" : "Archiv öffnen")
-                .help(showArchive ? "Zurück zur Liste" : "Archiv erledigter To-Dos")
-                Button { withAnimation(.easeOut(duration: 0.2)) { dueView.toggle() } } label: {
-                    Image(systemName: dueView ? "calendar.circle.fill" : "calendar").font(.title3)
-                        .foregroundStyle(dueView ? Color.accentColor : Color.primary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(dueView ? "Nach Gruppen anzeigen" : "Nach Fälligkeit anzeigen")
-                .help(dueView ? "Nach Gruppen anzeigen" : "Nach Fälligkeit anzeigen: Überfällig, Heute, Morgen …")
-                }
-                Button { showSettings.toggle() } label: {
-                    Image(systemName: "gearshape").font(.title3)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Einstellungen")
-                .help("Einstellungen öffnen")
             }
             if !showSettings && draft == nil {
-                Picker("Bereich", selection: $section) {
-                    ForEach(PanelSection.allCases) { Label($0.label, systemImage: $0.systemImage).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
+                IslandSwitch(options: PanelSection.allCases.map { ($0, $0.label, $0.systemImage) }, selection: $section)
             }
             if showSettings {
-                SettingsView(store: store, onClose: { showSettings = false })
+                SettingsView(store: store, dev: dev, onClose: { withAnimation(.island) { showSettings = false } })
             } else if section == .dev {
-                DevView(dev: dev)
+                DevView(dev: dev, store: store, openSettings: { withAnimation(.island) { showSettings = true } })
             } else {
             if draft == nil {
-                HStack {
-                    Button(action: openNewEditor) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(.quaternary.opacity(0.5))
-                            HStack {
-                                Text(title.isEmpty ? "Was steht an?" : title)
-                                    .foregroundStyle(title.isEmpty ? .secondary : .primary)
-                                Spacer()
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.title2)
-                                    .foregroundStyle(Color.accentColor)
-                            }
-                            .padding(12)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 52, maxHeight: 52)
+                Button(action: openNewEditor) {
+                    HStack {
+                        Text(title.isEmpty ? "Was steht an?" : title)
+                            .foregroundStyle(title.isEmpty ? .secondary : .primary)
+                        Spacer()
+                        Image(systemName: "plus")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.black)
+                            .frame(width: 26, height: 26)
+                            .background(Color.white, in: Circle())
                     }
-                    .buttonStyle(.plain)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(RoundedRectangle(cornerRadius: 10))
-                    .accessibilityLabel("Neues To-Do anlegen")
+                    .padding(.leading, 16)
+                    .padding(.trailing, 6)
+                    .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40)
+                    .islandCapsule()
+                    .contentShape(Capsule())
                 }
-                .padding(.horizontal, 12)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Neues To-Do anlegen")
             }
             if let error = store.error { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
             if let todo = draft {
-                Editor(todo: todo, isNew: draftIsNew, groups: store.groups, customPriorities: store.customPriorities, onSave: saveDraft, onCancel: { withAnimation(.easeOut(duration: 0.2)) { draft = nil } }).id(todo.id)
+                Editor(todo: todo, isNew: draftIsNew, groups: store.groups, customPriorities: store.customPriorities, onSave: saveDraft, onCancel: { withAnimation(.island) { draft = nil } }).id(todo.id)
             } else {
                 if showSearch { filterBar }
                 ScrollView {
-                    LazyVStack(spacing: 4) {
+                    LazyVStack(spacing: 8) {
                         if showArchive { archiveHeader }
                         if items.isEmpty {
                             VStack(spacing: 10) {
@@ -199,7 +166,7 @@ struct Panel: View {
                         } else if dueView {
                             ForEach(DueBucket.allCases) { bucket in dueSection(bucket) }
                         } else {
-                        VStack(spacing: 4) {
+                        VStack(spacing: 8) {
                             ForEach(standardItems) { item in todoCard(item) }
                             if standardItems.isEmpty && draggingTodoID != nil {
                                 Text("To-Dos hierher ziehen, um sie aus einer Gruppe zu lösen.")
@@ -217,6 +184,9 @@ struct Panel: View {
                         ForEach(visibleGroups) { group in groupBlock(group) }
                         }
                     }
+                    // Room for the card glow, which the scroll view would otherwise clip.
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 8)
                 }
                 .coordinateSpace(name: "todo-list")
                 .frame(minHeight: 160, maxHeight: .infinity)
@@ -225,11 +195,15 @@ struct Panel: View {
                 .onPreferenceChange(StandardFramePreferenceKey.self) { standardFrame = $0 }
                 .safeAreaInset(edge: .bottom) {
                     if !showArchive, store.archivableCount > 0 {
-                        Button { withAnimation { store.archiveDone() } } label: {
+                        Button { withAnimation(.island) { store.archiveDone() } } label: {
                             Label("\(store.archivableCount) erledigte archivieren", systemImage: "archivebox")
-                                .font(.caption)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.black, in: Capsule())
+                                .overlay(Capsule().strokeBorder(Color.white.opacity(0.15)))
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.plain)
                         .frame(maxWidth: .infinity)
                         .padding(.top, 6)
                         .help("Erledigte, nicht wiederkehrende To-Dos ins Archiv verschieben")
@@ -249,17 +223,48 @@ struct Panel: View {
         .overlay(alignment: .bottom) {
             if let step = store.undoStep { undoBar(step) }
         }
-        .animation(.easeOut(duration: 0.2), value: store.undoStep?.id)
-        .padding(20)
+        .animation(.island, value: store.undoStep?.id)
+        .padding(18)
         // Fixed list height: the menu bar window does not reliably grow, so the search bar takes space from the list instead.
         .frame(width: 460, height: draft != nil ? nil : 560, alignment: .top)
-        .background(backgroundColor.opacity(0.18), in: RoundedRectangle(cornerRadius: 16))
+        // Always deep black; the chosen background color only glows in from the top.
+        .background {
+            ZStack {
+                Color.black
+                RadialGradient(colors: [backgroundColor.opacity(0.32), .clear], center: .top, startRadius: 0, endRadius: 320)
+            }
+        }
+        .environment(\.colorScheme, .dark)
         .opacity(panelVisible ? 1 : 0)
-        .scaleEffect(panelVisible ? 1 : 0.96)
+        .scaleEffect(panelVisible ? 1 : 0.94, anchor: .top)
         .onAppear {
-            withAnimation(.easeOut(duration: 0.2)) { panelVisible = true }
+            withAnimation(.island) { panelVisible = true }
             rescheduleNotifications()
         }
+    }
+    private var overdueCount: Int {
+        let now = Date()
+        return store.todos.filter { !$0.done && !$0.archived && !$0.isDev && ($0.due.map { $0 < now } ?? false) }.count
+    }
+    private var statusPill: some View {
+        HStack(spacing: 6) {
+            Circle().fill(store.count == 0 ? Color.green : backgroundColor).frame(width: 7, height: 7)
+                .shadow(color: store.count == 0 ? .green : backgroundColor, radius: 4)
+            Text(store.count == 0 ? "Alles erledigt" : "\(store.count) offen")
+            if overdueCount > 0 {
+                Text("· \(overdueCount) überfällig").foregroundStyle(Color.red)
+            }
+            if !dev.pullRequests(in: .review).isEmpty {
+                Text("· \(dev.pullRequests(in: .review).count) PRs warten").foregroundStyle(Color.orange)
+            }
+        }
+        .font(.callout.weight(.semibold))
+        .lineLimit(1)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 7)
+        .background(Color.black, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.12)))
+        .accessibilityElement(children: .combine)
     }
     private func undoBar(_ step: UndoStep) -> some View {
         HStack(spacing: 10) {
@@ -267,7 +272,7 @@ struct Panel: View {
             Text(step.label).lineLimit(1)
             Spacer(minLength: 8)
             Button("Rückgängig") {
-                withAnimation { store.undo() }
+                withAnimation(.island) { store.undo() }
                 rescheduleNotifications()
             }
             .keyboardShortcut("z", modifiers: .command)
@@ -280,8 +285,9 @@ struct Panel: View {
         .font(.callout)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(.regularMaterial, in: Capsule())
-        .shadow(color: .black.opacity(0.2), radius: 8, y: 3)
+        .background(Color.black, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.5)))
+        .shadow(color: Color.accentColor.opacity(0.4), radius: 10)
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .task(id: step.id) {
             try? await Task.sleep(for: .seconds(8))
@@ -290,10 +296,10 @@ struct Panel: View {
     }
     private func openNewEditor() {
         draftIsNew = true
-        withAnimation(.easeOut(duration: 0.2)) { draft = Todo(title: title) }
+        withAnimation(.island) { draft = Todo(title: title) }
     }
     private func toggleSearch() {
-        withAnimation(.easeOut(duration: 0.2)) {
+        withAnimation(.island) {
             showSearch.toggle()
             // Closed search must not leave invisible filters behind.
             if !showSearch { resetFilter() }
@@ -303,10 +309,16 @@ struct Panel: View {
     private var filterBar: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                TextField("To-Dos suchen", text: $filter.query)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($searchFocused)
-                    .onExitCommand(perform: toggleSearch)
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                    TextField("To-Dos suchen", text: $filter.query)
+                        .textFieldStyle(.plain)
+                        .focused($searchFocused)
+                        .onExitCommand(perform: toggleSearch)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .islandCapsule()
                 Menu {
                     Picker("Status", selection: $statusFilter) {
                         ForEach(StatusFilter.allCases) { Text($0.label).tag($0) }
@@ -393,8 +405,9 @@ struct Panel: View {
                 .font(.caption)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(isOn ? Color.accentColor : Color.secondary.opacity(0.15), in: Capsule())
-                .foregroundStyle(isOn ? Color.white : Color.primary)
+                .foregroundStyle(isOn ? Color.black : Color.white.opacity(0.85))
+                .background(isOn ? Color.white : Color.white.opacity(0.08), in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.white.opacity(isOn ? 0 : 0.1)))
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isOn ? .isSelected : [])
@@ -415,7 +428,7 @@ struct Panel: View {
             if store.todos.contains(where: \.showsInArchive) {
                 Button(confirmClearArchive ? "Wirklich alle löschen?" : "Archiv leeren") {
                     if confirmClearArchive {
-                        withAnimation { store.clearArchive() }
+                        withAnimation(.island) { store.clearArchive() }
                         confirmClearArchive = false
                     } else {
                         confirmClearArchive = true
@@ -446,13 +459,24 @@ struct Panel: View {
     private func groupedItems(for groupID: UUID) -> [Todo] { items.filter { $0.groupID == groupID } }
     @ViewBuilder private func groupBlock(_ group: TodoGroup) -> some View {
         let groupItems = groupedItems(for: group.id)
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(group.name).font(.title3.bold())
+        let groupColor = Color(hex: group.colorHex)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Circle().fill(groupColor).frame(width: 9, height: 9).shadow(color: groupColor, radius: 4)
+                Text(group.name).font(.headline)
+                Text("\(groupItems.filter { !$0.done }.count)")
+                    .font(.caption.weight(.bold))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 1)
+                    .background(groupColor.opacity(0.3), in: Capsule())
                 Spacer()
                 Image(systemName: "line.3.horizontal").foregroundStyle(.secondary)
             }
-            .contentShape(Rectangle())
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.black, in: Capsule())
+            .overlay(Capsule().strokeBorder(groupColor.opacity(0.5)))
+            .contentShape(Capsule())
             .help("Ziehen, um die Gruppe zu verschieben")
             .gesture(DragGesture(minimumDistance: 8, coordinateSpace: .named("todo-list"))
                 .onChanged { value in
@@ -460,23 +484,32 @@ struct Panel: View {
                     hoveredGroupID = groupFrames.first(where: { $0.key != group.id && $0.value.contains(value.location) })?.key
                 }
                 .onEnded { _ in
-                    if let target = hoveredGroupID { withAnimation { store.reorderGroup(group.id, to: target) } }
+                    if let target = hoveredGroupID { withAnimation(.island) { store.reorderGroup(group.id, to: target) } }
                     draggingGroupID = nil
                     hoveredGroupID = nil
                 })
-            Text("Notizen").font(.caption.bold()).foregroundStyle(.secondary)
-            TextEditor(text: groupNotesBinding(for: group))
-                .frame(minHeight: 58, maxHeight: 84)
-                .padding(4)
-                .background(.background.opacity(0.7), in: RoundedRectangle(cornerRadius: 8))
-            ForEach(groupItems) { item in todoCard(item) }
-            if groupItems.isEmpty {
-                Text("Noch keine To-Dos in dieser Gruppe.").font(.caption).foregroundStyle(.secondary).padding(.vertical, 6)
+            // Slim one-line notes bar that grows while typing.
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "note.text").font(.caption).foregroundStyle(.secondary)
+                TextField("Notizen", text: groupNotesBinding(for: group), axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.callout)
+                    .lineLimit(1...6)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+            VStack(spacing: 8) {
+                ForEach(groupItems) { item in todoCard(item) }
+                if groupItems.isEmpty {
+                    Text("Noch keine To-Dos in dieser Gruppe.").font(.caption).foregroundStyle(.secondary).padding(.vertical, 4)
+                }
+            }
+            .padding(.leading, 12)
         }
-        .padding(14)
-        .background(Color(hex: group.colorHex).opacity(hoveredGroupID == group.id ? 0.22 : 0.10), in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(hex: group.colorHex).opacity(0.55), lineWidth: 2))
+        .padding(8)
+        .background(groupColor.opacity(hoveredGroupID == group.id ? 0.2 : 0.06), in: RoundedRectangle(cornerRadius: 24))
+        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(groupColor.opacity(hoveredGroupID == group.id ? 0.8 : 0.25), lineWidth: 1.5))
         .opacity(draggingGroupID == group.id ? 0.4 : 1)
         .background(GeometryReader { proxy in
             Color.clear.preference(key: GroupFramePreferenceKey.self, value: [group.id: proxy.frame(in: .named("todo-list"))])
@@ -494,12 +527,12 @@ struct Panel: View {
         )
     }
     @ViewBuilder private func todoCard(_ item: Todo) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Button { withAnimation { store.toggle(item) }; rescheduleNotifications() } label: {
-                Image(systemName: item.done ? "checkmark.circle.fill" : "circle").font(.title3)
-                    .foregroundStyle(item.done ? Color.green : Color.secondary)
+        HStack(alignment: .center, spacing: 10) {
+            Button { withAnimation(.island) { store.toggle(item) }; rescheduleNotifications() } label: {
+                Image(systemName: item.done ? "checkmark.circle.fill" : "circle").font(.title2)
+                    .foregroundStyle(item.done ? Color.green : Color.white.opacity(0.85))
             }.buttonStyle(.plain).accessibilityLabel(item.done ? "Wieder öffnen: \(item.title)" : "Erledigen: \(item.title)")
-            VStack(alignment: .leading, spacing: 5) {
+            VStack(alignment: .leading, spacing: 6) {
                 if editingTodoID == item.id {
                     TextField("Titel", text: $editingTitle)
                         .textFieldStyle(.plain)
@@ -510,23 +543,12 @@ struct Panel: View {
                             if !focused { commitTitle(item.id) }
                         }
                 } else {
-                    Text(item.title).strikethrough(item.done).foregroundStyle(item.done ? .secondary : .primary)
+                    Text(item.title).font(.body.weight(.medium)).strikethrough(item.done).foregroundStyle(item.done ? .secondary : .primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .onTapGesture(count: 2) { startEditingTitle(item) }
                         .help("Doppelklick zum Umbenennen")
                 }
-                if let due = item.due {
-                    Text(due, format: .dateTime.day().month().hour().minute())
-                        .font(.caption)
-                        .foregroundStyle(!item.done && due < Date() ? Color.red : Color.secondary)
-                }
-                if dueView, let group = store.groups.first(where: { $0.id == item.groupID }) {
-                    Label(group.name, systemImage: "folder")
-                        .font(.caption2)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(Color(hex: group.colorHex).opacity(0.35), in: Capsule())
-                }
+                infoPills(item)
             }
             Spacer(minLength: 0)
             Menu {
@@ -544,26 +566,29 @@ struct Panel: View {
                 }
                 Button("Fälligkeit und Wiederholung …") { draftIsNew = false; draft = item }
                 if item.archived {
-                    Button("Wiederherstellen") { withAnimation { store.setArchived(item.id, false) } }
+                    Button("Wiederherstellen") { withAnimation(.island) { store.setArchived(item.id, false) } }
                 } else if item.canArchive {
-                    Button("Archivieren") { withAnimation { store.setArchived(item.id, true) } }
+                    Button("Archivieren") { withAnimation(.island) { store.setArchived(item.id, true) } }
                 }
                 Divider()
-                Button("Löschen", role: .destructive) { withAnimation { store.delete(item) }; rescheduleNotifications() }
-            } label: { Image(systemName: "ellipsis") }
-            .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("Optionen für \(item.title)")
+                Button("Löschen", role: .destructive) { withAnimation(.island) { store.delete(item) }; rescheduleNotifications() }
+            } label: { Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)) }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .frame(width: 28, height: 28)
+            .background(Color.white.opacity(0.12), in: Circle())
+            .accessibilityLabel("Optionen für \(item.title)")
         }
-        .padding(14)
-        .frame(minHeight: 68)
-        .background(cardColor(for: item), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor(for: item), lineWidth: 1.5))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(minHeight: 56)
+        .islandCard(tint: cardColor(for: item), shimmer: !item.done)
         .overlay(alignment: .top) {
             if hoveredCardID == item.id {
-                Capsule().fill(Color.accentColor).frame(height: 4).offset(y: -4)
+                Capsule().fill(Color.white).frame(height: 3).offset(y: -6).shadow(color: .white, radius: 4)
             }
         }
-        .opacity(draggingTodoID == item.id ? 0.28 : (item.done ? 0.6 : 1))
-        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .opacity(draggingTodoID == item.id ? 0.28 : (item.done ? 0.55 : 1))
+        .contentShape(RoundedRectangle(cornerRadius: 18))
         .background(GeometryReader { proxy in
             Color.clear.preference(key: CardFramePreferenceKey.self, value: [item.id: proxy.frame(in: .named("todo-list"))])
         })
@@ -583,9 +608,9 @@ struct Panel: View {
                 let groupID = groupFrames.first(where: { $0.value.contains(value.location) })?.key
                 let isStandardDrop = groupID == nil && standardFrame.contains(value.location)
                 if let target = hoveredCardID {
-                    withAnimation { store.reorderTodo(item.id, to: target) }
+                    withAnimation(.island) { store.reorderTodo(item.id, to: target) }
                 } else if (groupID != nil || isStandardDrop), groupID != item.groupID {
-                    withAnimation { store.moveTodo(item.id, to: groupID) }
+                    withAnimation(.island) { store.moveTodo(item.id, to: groupID) }
                     rescheduleNotifications()
                 }
                 draggingTodoID = nil
@@ -594,6 +619,20 @@ struct Panel: View {
                 hoveringStandard = false
             })
         .transition(.asymmetric(insertion: .scale(scale: 0.55, anchor: .top).combined(with: .move(edge: .top)).combined(with: .opacity), removal: .opacity))
+    }
+    @ViewBuilder private func infoPills(_ item: Todo) -> some View {
+        let group = (dueView || showArchive) ? store.groups.first(where: { $0.id == item.groupID }) : nil
+        if item.due != nil || item.repeatRule != .none || group != nil {
+            HStack(spacing: 5) {
+                if let due = item.due {
+                    InfoPill(text: due.formatted(.dateTime.day().month().hour().minute()), systemImage: "calendar",
+                             tint: !item.done && due < Date() ? .red : .white)
+                    if item.extraReminder != .none { InfoPill(text: item.extraReminder.label.replacingOccurrences(of: " vorher", with: ""), systemImage: "bell") }
+                }
+                if item.repeatRule != .none { InfoPill(text: item.repeatRule.label, systemImage: "repeat") }
+                if let group { InfoPill(text: group.name, systemImage: "folder", tint: Color(hex: group.colorHex)) }
+            }
+        }
     }
     private func startEditingTitle(_ item: Todo) {
         editingTitle = item.title
@@ -620,7 +659,7 @@ struct Panel: View {
                 case .custom(let id):
                     todo.customPriorityID = id
                 }
-                withAnimation { store.save(todo) }
+                withAnimation(.island) { store.save(todo) }
                 rescheduleNotifications()
             }
         )
@@ -629,7 +668,7 @@ struct Panel: View {
         Binding(
             get: { item.groupID },
             set: { groupID in
-                withAnimation { store.moveTodo(item.id, to: groupID) }
+                withAnimation(.island) { store.moveTodo(item.id, to: groupID) }
                 rescheduleNotifications()
             }
         )
@@ -644,9 +683,8 @@ struct Panel: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
         .frame(width: 260, alignment: .leading)
-        .background(cardColor(for: item).opacity(0.55), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(borderColor(for: item), lineWidth: 1.5))
-        .opacity(0.62)
+        .islandCard(tint: cardColor(for: item), shimmer: false)
+        .opacity(0.75)
         .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
     }
     private func add() {
@@ -654,7 +692,7 @@ struct Panel: View {
         saveDraft(Todo(title: title))
     }
     private func saveDraft(_ todo: Todo) {
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.62)) {
+        withAnimation(.island) {
             store.save(todo)
             title = ""
             draft = nil
@@ -691,6 +729,7 @@ private struct StandardFramePreferenceKey: PreferenceKey {
 
 struct SettingsView: View {
     @ObservedObject var store: Store
+    @ObservedObject var dev: DevStore
     let onClose: () -> Void
     @State private var selectedTab = 0
     @AppStorage("manualSort") private var manualSort = false
@@ -715,23 +754,11 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
-                Button(action: onClose) {
-                    Image(systemName: "arrow.left")
-                }
-                .buttonStyle(.plain)
-                .font(.title2)
-                .frame(width: 36, height: 36)
-                .accessibilityLabel("Zurück zur To-Do-Liste")
+            HStack(spacing: 10) {
+                IslandIconButton(systemImage: "arrow.left", label: "Zurück zur To-Do-Liste", action: onClose)
                 Text("Einstellungen").font(.headline)
             }
-            Picker("Bereich", selection: $selectedTab) {
-                Text("Allgemein").tag(0)
-                Text("Darstellung").tag(1)
-                Text("Benachrichtigungen").tag(2)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            IslandSwitch(options: [(0, "Allgemein", nil), (1, "Darstellung", nil), (2, "Mitteilungen", nil)], selection: $selectedTab)
 
             Group {
                 if selectedTab == 0 {
@@ -740,12 +767,7 @@ struct SettingsView: View {
                             SettingsCard(title: "Sortierung", systemImage: "arrow.up.arrow.down", subtitle: manualSort
                                 ? "Ziehe To-Dos auf andere To-Dos und Gruppen am Griff ≡, um die Reihenfolge festzulegen."
                                 : "Offene zuerst, dann nach Priorität, Fälligkeit und Erstellung. Gruppen lassen sich immer am Griff ≡ verschieben.") {
-                                Picker("Sortierung", selection: $manualSort) {
-                                    Text("Automatisch").tag(false)
-                                    Text("Manuell").tag(true)
-                                }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
+                                IslandSwitch(options: [(false, "Automatisch", nil), (true, "Manuell", nil)], selection: $manualSort)
                             }
                             SettingsCard(title: "Gruppen", systemImage: "folder", subtitle: "Gruppen bündeln To-Dos mit gemeinsamen Notizen.") {
                                 ForEach(store.groups) { group in
@@ -782,6 +804,15 @@ struct SettingsView: View {
                                     Button(action: createPriority) { Label("Anlegen", systemImage: "plus") }
                                         .buttonStyle(.borderedProminent)
                                         .disabled(newPriorityName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                }
+                            }
+                            SettingsCard(title: "GitHub", systemImage: "chevron.left.forwardslash.chevron.right", subtitle: dev.login.map { "Verbunden als @\($0) über die GitHub CLI. \(dev.selectedRepos.count) von \(dev.availableRepos.count) Repositories erscheinen im Dev-Bereich." } ?? "Nicht verbunden – öffne den Dev-Bereich für die Einrichtung.") {
+                                ForEach(dev.availableRepos, id: \.self) { repo in
+                                    Toggle(repo, isOn: Binding(get: { dev.isSelected(repo) }, set: { selected in
+                                        dev.setSelected(repo, selected)
+                                        Task { await dev.refresh() }
+                                    }))
+                                    .toggleStyle(.checkbox)
                                 }
                             }
                             SettingsCard(title: "Daten sichern", systemImage: "externaldrive", subtitle: "Enthält alle To-Dos, Gruppen mit Notizen und Prioritäten im Klartext – sicher aufbewahren. Vor jedem Import wird der aktuelle Stand automatisch gesichert.") {
@@ -1016,10 +1047,9 @@ struct SettingsCard<Content: View>: View {
             }
             content
         }
-        .padding(12)
+        .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.background.opacity(0.6), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.foreground.opacity(0.12)))
+        .islandSurface(cornerRadius: 18)
     }
 }
 
@@ -1046,9 +1076,10 @@ struct SettingsItemRow: View {
                 .foregroundStyle(.red)
                 .accessibilityLabel("\(name) löschen")
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 12)
         .padding(.vertical, 7)
-        .background(.foreground.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.black, in: Capsule())
+        .overlay(Capsule().strokeBorder(Color(hex: colorHex).opacity(0.4)))
     }
 }
 
@@ -1138,14 +1169,6 @@ private extension Priority {
         case .low: return low
         }
     }
-
-    func borderColor(high: Color, medium: Color, low: Color) -> Color {
-        switch self {
-        case .high: return high.opacity(0.72)
-        case .normal: return medium.opacity(0.72)
-        case .low: return low.opacity(0.72)
-        }
-    }
 }
 
 struct Editor: View {
@@ -1160,16 +1183,17 @@ struct Editor: View {
     let onCancel: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
-                Button(action: onCancel) {
-                    Image(systemName: "arrow.left")
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Zurück")
-                .help("Neues To-Do abbrechen")
+            HStack(spacing: 10) {
+                IslandIconButton(systemImage: "arrow.left", label: "Abbrechen", action: onCancel)
                 Text(isNew ? "Neues To-Do" : "To-Do bearbeiten").font(.headline)
             }
-            TextField("Titel", text: $todo.title).textFieldStyle(.roundedBorder)
+            TextField("Titel", text: $todo.title)
+                .textFieldStyle(.plain)
+                .font(.title3.weight(.medium))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .islandCapsule()
+            VStack(alignment: .leading, spacing: 12) {
             Picker("Priorität", selection: $priorityChoice) {
                 Section("Standard") {
                     ForEach(Priority.allCases) { priority in
@@ -1214,16 +1238,20 @@ struct Editor: View {
                         }
                         .buttonStyle(.plain)
                         .frame(width: 34, height: 28)
-                        .background(todo.repeatDays.contains(day) ? Color.accentColor : Color.secondary.opacity(0.15), in: RoundedRectangle(cornerRadius: 7))
-                        .foregroundStyle(todo.repeatDays.contains(day) ? .white : .primary)
+                        .background(todo.repeatDays.contains(day) ? Color.white : Color.white.opacity(0.1), in: Capsule())
+                        .foregroundStyle(todo.repeatDays.contains(day) ? .black : .primary)
                         .accessibilityLabel("\(day.shortLabel) \(todo.repeatDays.contains(day) ? "ausgewählt" : "nicht ausgewählt")")
                     }
                 }
             }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .islandSurface(cornerRadius: 18)
             HStack {
-                Button("Abbrechen", action: onCancel)
+                Button("Abbrechen", action: onCancel).buttonStyle(.plain).foregroundStyle(.secondary)
                 Spacer()
-                Button("Speichern") {
+                Button {
                     todo.due = hasDue ? date : nil
                     switch priorityChoice {
                     case .standard(let priority):
@@ -1233,9 +1261,17 @@ struct Editor: View {
                         todo.customPriorityID = id
                     }
                     onSave(todo)
+                } label: {
+                    Text("Speichern")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 8)
+                        .background(Color.white, in: Capsule())
                 }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(todo.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .buttonStyle(.plain)
+                .keyboardShortcut(.defaultAction)
+                .disabled(todo.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(12)
