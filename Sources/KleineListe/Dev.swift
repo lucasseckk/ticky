@@ -21,7 +21,12 @@ enum PanelSection: String, CaseIterable, Identifiable {
 /// Dev section: pull requests, urgent issues and agent issues from GitHub (see #22).
 struct DevView: View {
     @ObservedObject var dev: DevStore
+    @ObservedObject var store: Store
     let openSettings: () -> Void
+    @State private var newDevTodo = ""
+    @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
+    @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
+    @AppStorage("lowPriorityColor") private var lowPriorityColorHex = "#94BD80"
     @State private var confirmMergeID: String?
     @State private var mergingID: String?
     @State private var toast: (text: String, success: Bool)?
@@ -44,6 +49,7 @@ struct DevView: View {
                                         .font(.caption)
                                         .foregroundStyle(.orange)
                                 }
+                                devTodos
                                 section(.review, "Review von mir angefordert", "eyes")
                                 section(.mine, "Meine PRs", "arrow.up.right")
                                 section(.other, "Sonstige", "tray")
@@ -60,6 +66,7 @@ struct DevView: View {
                             .padding(.horizontal, 4)
                             .padding(.vertical, 6)
                             .animation(.island, value: dev.pullRequests)
+                            .animation(.island, value: store.todos.filter(\.isDev).map(\.id))
                         }
                     }
                 }
@@ -90,6 +97,105 @@ struct DevView: View {
                 try? await Task.sleep(for: .seconds(120))
             }
         }
+    }
+
+    private var devItems: [Todo] {
+        store.todos.filter(\.isDev).sorted { $0.done != $1.done ? !$0.done : $0.priority.rawValue != $1.priority.rawValue ? $0.priority.rawValue > $1.priority.rawValue : $0.created < $1.created }
+    }
+
+    /// Dev to-dos (#49): collected from pull requests or added by hand, separate from the normal list.
+    @ViewBuilder private var devTodos: some View {
+        HStack(spacing: 6) {
+            Label("Dev-To-dos", systemImage: "checklist").font(.headline)
+            Text("\(devItems.filter { !$0.done }.count)").font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 4)
+        HStack(spacing: 6) {
+            TextField("Dev-To-do hinzufügen", text: $newDevTodo)
+                .textFieldStyle(.plain)
+                .onSubmit(addDevTodo)
+            Button(action: addDevTodo) {
+                Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundStyle(.black)
+                    .frame(width: 24, height: 24).background(Color.white, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(newDevTodo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("Dev-To-do hinzufügen")
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 5)
+        .padding(.vertical, 5)
+        .islandCapsule()
+        ForEach(devItems) { item in devRow(item) }
+    }
+
+    private func devRow(_ item: Todo) -> some View {
+        HStack(spacing: 10) {
+            Button { withAnimation(.island) { store.toggle(item) } } label: {
+                Image(systemName: item.done ? "checkmark.circle.fill" : "circle").font(.title3)
+                    .foregroundStyle(item.done ? Color.green : Color.white.opacity(0.85))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(item.done ? "Wieder öffnen: \(item.title)" : "Erledigen: \(item.title)")
+            VStack(alignment: .leading, spacing: 5) {
+                DevTitleField(title: item.title, done: item.done) { title in
+                    guard var todo = store.todos.first(where: { $0.id == item.id }), todo.title != title else { return }
+                    todo.title = title
+                    store.save(todo)
+                }
+                if let link = item.link {
+                    Button { NSWorkspace.shared.open(link) } label: {
+                        InfoPill(text: link.pathComponents.suffix(3).joined(separator: "/"), systemImage: "link", tint: .blue)
+                    }
+                    .buttonStyle(.plain)
+                    .help(link.absoluteString)
+                }
+            }
+            Spacer(minLength: 0)
+            Menu {
+                Picker("Priorität", selection: Binding(get: { item.priority }, set: { priority in
+                    guard var todo = store.todos.first(where: { $0.id == item.id }) else { return }
+                    todo.priority = priority
+                    withAnimation(.island) { store.save(todo) }
+                })) {
+                    ForEach(Priority.allCases.reversed()) { Text($0.label).tag($0) }
+                }
+                Divider()
+                Button("Löschen", role: .destructive) { withAnimation(.island) { store.delete(item) } }
+            } label: { Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)) }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .frame(width: 28, height: 28)
+            .background(Color.white.opacity(0.12), in: Circle())
+            .accessibilityLabel("Optionen für \(item.title)")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .islandCard(tint: color(for: item.priority), shimmer: !item.done)
+        .opacity(item.done ? 0.55 : 1)
+        .transition(.asymmetric(insertion: .scale(scale: 0.6, anchor: .top).combined(with: .opacity), removal: .opacity))
+    }
+
+    private func color(for priority: Priority) -> Color {
+        switch priority {
+        case .high: return Color(hex: highPriorityColorHex)
+        case .normal: return Color(hex: mediumPriorityColorHex)
+        case .low: return Color(hex: lowPriorityColorHex)
+        }
+    }
+
+    private func addDevTodo() {
+        guard !newDevTodo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        withAnimation(.island) { store.save(Todo(title: newDevTodo, isDev: true)) }
+        newDevTodo = ""
+    }
+
+    private func hasTodo(for pr: PullRequest) -> Bool { store.todos.contains { $0.isDev && $0.link == pr.url } }
+
+    private func addTodo(for pr: PullRequest) {
+        let repoName = pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo
+        let priority: Priority = pr.category(for: dev.login) == .review ? .high : .normal
+        withAnimation(.island) { store.save(Todo(title: "Review: \(pr.title) (\(repoName) #\(pr.number))", priority: priority, isDev: true, link: pr.url)) }
+        withAnimation(.island) { toast = ("Als Dev-To-do gespeichert", true) }
     }
 
     private var reviewCount: Int { dev.pullRequests(in: .review).count }
@@ -192,6 +298,7 @@ struct DevView: View {
                 }
             }
             Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 5) {
             Button {
                 if confirming { merge(pr) } else { withAnimation(.island) { confirmMergeID = pr.id } }
             } label: {
@@ -209,6 +316,18 @@ struct DevView: View {
             .disabled(!pr.canMerge || mergingID != nil)
             .opacity(pr.canMerge ? 1 : 0.35)
             .help(pr.canMerge ? "Mit Merge-Commit zusammenführen" : pr.isDraft ? "Draft-PRs können nicht gemergt werden" : "Erst wenn die CI grün ist")
+            Button { addTodo(for: pr) } label: {
+                Label(hasTodo(for: pr) ? "Als To-do ✓" : "Als To-do", systemImage: "plus")
+                    .labelStyle(.titleOnly)
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .islandCapsule()
+            }
+            .buttonStyle(.plain)
+            .disabled(hasTodo(for: pr))
+            .help("In die Dev-To-dos übernehmen")
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -293,5 +412,26 @@ struct CIDot: View {
         case .pending: return "CI läuft"
         case .none: return "Keine CI"
         }
+    }
+}
+
+/// Editable title that saves on Return or when focus leaves, so trimming never fights the typing.
+private struct DevTitleField: View {
+    let title: String
+    let done: Bool
+    let onCommit: (String) -> Void
+    @State private var text = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        TextField("Titel", text: $text, axis: .vertical)
+            .textFieldStyle(.plain)
+            .font(.body.weight(.medium))
+            .strikethrough(done)
+            .focused($focused)
+            .onSubmit { onCommit(text) }
+            .onChange(of: focused) { _, isFocused in if !isFocused { onCommit(text) } }
+            .onAppear { text = title }
+            .onChange(of: title) { _, newTitle in if !focused { text = newTitle } }
     }
 }
