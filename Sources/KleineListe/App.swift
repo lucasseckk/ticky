@@ -42,6 +42,7 @@ struct Panel: View {
     @State private var draggingGroupID: UUID?
     @State private var cardFrames: [UUID: CGRect] = [:]
     @State private var hoveredCardID: UUID?
+    @AppStorage("dueView") private var dueView = false
     @AppStorage("manualSort") private var manualSort = false
     @State private var dragLocation = CGPoint.zero
     @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
@@ -110,6 +111,13 @@ struct Panel: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(showSearch ? "Suche schließen" : "Suche öffnen")
                 .help(showSearch ? "Suche schließen" : "To-Dos suchen und filtern")
+                Button { withAnimation(.easeOut(duration: 0.2)) { dueView.toggle() } } label: {
+                    Image(systemName: dueView ? "calendar.circle.fill" : "calendar").font(.title3)
+                        .foregroundStyle(dueView ? Color.accentColor : Color.primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(dueView ? "Nach Gruppen anzeigen" : "Nach Fälligkeit anzeigen")
+                .help(dueView ? "Nach Gruppen anzeigen" : "Nach Fälligkeit anzeigen: Überfällig, Heute, Morgen …")
                 Button { showSettings.toggle() } label: {
                     Image(systemName: "gearshape").font(.title3)
                 }
@@ -158,6 +166,9 @@ struct Panel: View {
                                 Text(filterActive ? "Keine passenden To-Dos." : "Platz für deinen nächsten Plan.")
                             }.foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 40)
                         }
+                        if dueView {
+                            ForEach(DueBucket.allCases) { bucket in dueSection(bucket) }
+                        } else {
                         VStack(spacing: 4) {
                             ForEach(standardItems) { item in todoCard(item) }
                             if standardItems.isEmpty && (draggingTodoID != nil || !filterActive) {
@@ -174,6 +185,7 @@ struct Panel: View {
                             Color.clear.preference(key: StandardFramePreferenceKey.self, value: proxy.frame(in: .named("todo-list")))
                         })
                         ForEach(visibleGroups) { group in groupBlock(group) }
+                        }
                     }
                 }
                 .coordinateSpace(name: "todo-list")
@@ -353,6 +365,21 @@ struct Panel: View {
         guard filterActive && draggingTodoID == nil else { return store.groups }
         return store.groups.filter { !groupedItems(for: $0.id).isEmpty }
     }
+    @ViewBuilder private func dueSection(_ bucket: DueBucket) -> some View {
+        let now = Date()
+        let bucketItems = items.filter { DueBucket($0, now: now) == bucket }
+            .sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
+        if !bucketItems.isEmpty {
+            HStack {
+                Text(bucket.label).font(.headline).foregroundStyle(bucket == .overdue ? Color.red : Color.primary)
+                Text("\(bucketItems.count)").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+            }
+            .padding(.top, 8)
+            .padding(.horizontal, 4)
+            ForEach(bucketItems) { item in todoCard(item) }
+        }
+    }
     private var standardItems: [Todo] { items.filter { $0.groupID == nil } }
     private func groupedItems(for groupID: UUID) -> [Todo] { items.filter { $0.groupID == groupID } }
     @ViewBuilder private func groupBlock(_ group: TodoGroup) -> some View {
@@ -418,6 +445,13 @@ struct Panel: View {
                         .font(.caption)
                         .foregroundStyle(!item.done && due < Date() ? Color.red : Color.secondary)
                 }
+                if dueView, let group = store.groups.first(where: { $0.id == item.groupID }) {
+                    Label(group.name, systemImage: "folder")
+                        .font(.caption2)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Color(hex: group.colorHex).opacity(0.35), in: Capsule())
+                }
             }
             Spacer(minLength: 0)
             Menu {
@@ -444,7 +478,8 @@ struct Panel: View {
         // Only this gesture handles dragging: a parallel system .onDrag cancels it without calling onEnded.
         .simultaneousGesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("todo-list"))
             .onChanged { value in
-                guard abs(value.translation.width) > 8 || abs(value.translation.height) > 8 else { return }
+                // Time sections are derived from due dates, so there is nothing to drop onto there.
+                guard !dueView, abs(value.translation.width) > 8 || abs(value.translation.height) > 8 else { return }
                 draggingTodoID = item.id
                 dragLocation = value.location
                 hoveredCardID = manualSort ? cardFrames.first(where: { $0.key != item.id && $0.value.contains(value.location) })?.key : nil
