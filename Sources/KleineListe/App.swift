@@ -259,8 +259,13 @@ struct Panel: View {
                 ForEach(Priority.allCases.reversed()) { priority in
                     priorityChip(priority.label, .standard(priority))
                 }
+            }
+            presetRow("Eigene") {
                 ForEach(store.customPriorities) { priority in
                     priorityChip(priority.name, .custom(priority.id))
+                }
+                if store.customPriorities.isEmpty {
+                    presetChip("Eigene Priorität anlegen", "plus", false) { showSettings = true }
                 }
             }
             presetRow("Gruppe") {
