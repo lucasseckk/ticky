@@ -122,9 +122,9 @@ struct Panel: View {
                 IslandSwitch(options: PanelSection.allCases.map { ($0, $0.label, $0.systemImage) }, selection: $section)
             }
             if showSettings {
-                SettingsView(store: store, onClose: { showSettings = false })
+                SettingsView(store: store, dev: dev, onClose: { withAnimation(.island) { showSettings = false } })
             } else if section == .dev {
-                DevView(dev: dev)
+                DevView(dev: dev, openSettings: { withAnimation(.island) { showSettings = true } })
             } else {
             if draft == nil {
                 Button(action: openNewEditor) {
@@ -253,6 +253,9 @@ struct Panel: View {
             Text(store.count == 0 ? "Alles erledigt" : "\(store.count) offen")
             if overdueCount > 0 {
                 Text("· \(overdueCount) überfällig").foregroundStyle(Color.red)
+            }
+            if !dev.pullRequests(in: .review).isEmpty {
+                Text("· \(dev.pullRequests(in: .review).count) PRs warten").foregroundStyle(Color.orange)
             }
         }
         .font(.callout.weight(.semibold))
@@ -726,6 +729,7 @@ private struct StandardFramePreferenceKey: PreferenceKey {
 
 struct SettingsView: View {
     @ObservedObject var store: Store
+    @ObservedObject var dev: DevStore
     let onClose: () -> Void
     @State private var selectedTab = 0
     @AppStorage("manualSort") private var manualSort = false
@@ -800,6 +804,15 @@ struct SettingsView: View {
                                     Button(action: createPriority) { Label("Anlegen", systemImage: "plus") }
                                         .buttonStyle(.borderedProminent)
                                         .disabled(newPriorityName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                }
+                            }
+                            SettingsCard(title: "GitHub", systemImage: "chevron.left.forwardslash.chevron.right", subtitle: dev.login.map { "Verbunden als @\($0) über die GitHub CLI. \(dev.selectedRepos.count) von \(dev.availableRepos.count) Repositories erscheinen im Dev-Bereich." } ?? "Nicht verbunden – öffne den Dev-Bereich für die Einrichtung.") {
+                                ForEach(dev.availableRepos, id: \.self) { repo in
+                                    Toggle(repo, isOn: Binding(get: { dev.isSelected(repo) }, set: { selected in
+                                        dev.setSelected(repo, selected)
+                                        Task { await dev.refresh() }
+                                    }))
+                                    .toggleStyle(.checkbox)
                                 }
                             }
                             SettingsCard(title: "Daten sichern", systemImage: "externaldrive", subtitle: "Enthält alle To-Dos, Gruppen mit Notizen und Prioritäten im Klartext – sicher aufbewahren. Vor jedem Import wird der aktuelle Stand automatisch gesichert.") {
