@@ -88,9 +88,13 @@ struct Todo: Identifiable, Codable, Sendable {
     var customPriorityID: UUID?
     var extraReminder: ReminderOffset = .none
     var done = false
+    var archived = false
     var created = Date()
 
-    enum CodingKeys: String, CodingKey { case id, title, priority, due, repeatRule, repeatDays, groupID, customPriorityID, extraReminder, done, created }
+    /// Only finished one-off to-dos may be archived; a recurring one would silently stop coming back.
+    var canArchive: Bool { done && repeatRule == .none }
+
+    enum CodingKeys: String, CodingKey { case id, title, priority, due, repeatRule, repeatDays, groupID, customPriorityID, extraReminder, done, archived, created }
     init(title: String, priority: Priority = .normal, due: Date? = nil, repeatRule: RepeatRule = .none, repeatDays: Set<Weekday> = [], groupID: UUID? = nil, customPriorityID: UUID? = nil, extraReminder: ReminderOffset = .none, done: Bool = false, created: Date = Date()) {
         self.title = title
         self.priority = priority
@@ -115,6 +119,7 @@ struct Todo: Identifiable, Codable, Sendable {
         customPriorityID = try container.decodeIfPresent(UUID.self, forKey: .customPriorityID)
         extraReminder = try container.decodeIfPresent(ReminderOffset.self, forKey: .extraReminder) ?? .none
         done = try container.decode(Bool.self, forKey: .done)
+        archived = try container.decodeIfPresent(Bool.self, forKey: .archived) ?? false
         created = try container.decode(Date.self, forKey: .created)
     }
 }
@@ -264,7 +269,9 @@ struct UndoStep: Identifiable {
     func toggle(_ item: Todo) {
         guard writable, var changed = todos.first(where: { $0.id == item.id }) else { return }
         recordUndo(changed.done ? "„\(changed.title)“ wieder geöffnet" : "„\(changed.title)“ erledigt")
-        changed.done.toggle(); save(changed)
+        changed.done.toggle()
+        if !changed.done { changed.archived = false }
+        save(changed)
     }
     func moveTodo(_ id: UUID, to groupID: UUID?) {
         guard writable, let index = todos.firstIndex(where: { $0.id == id }) else { return }
@@ -323,6 +330,25 @@ struct UndoStep: Identifiable {
         customPriorities.removeAll { $0.id == priority.id }
         todos = todos.map { var todo = $0; if todo.customPriorityID == priority.id { todo.customPriorityID = nil }; return todo }
         persistPriorities(); persist()
+    }
+    var archivableCount: Int { todos.filter { $0.canArchive && !$0.archived }.count }
+    func archiveDone() {
+        guard writable, archivableCount > 0 else { return }
+        recordUndo("\(archivableCount) erledigte archiviert")
+        todos = todos.map { var todo = $0; if todo.canArchive { todo.archived = true }; return todo }
+        persist()
+    }
+    func setArchived(_ id: UUID, _ archived: Bool) {
+        guard writable, let index = todos.firstIndex(where: { $0.id == id }), !archived || todos[index].canArchive else { return }
+        recordUndo(archived ? "„\(todos[index].title)“ archiviert" : "„\(todos[index].title)“ wiederhergestellt")
+        todos[index].archived = archived
+        persist()
+    }
+    func clearArchive() {
+        guard writable, todos.contains(where: \.archived) else { return }
+        recordUndo("Archiv geleert")
+        todos.removeAll(where: \.archived)
+        persist()
     }
     func undo() {
         guard writable, let step = undoStep else { return }

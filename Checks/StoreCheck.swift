@@ -73,6 +73,23 @@ import Foundation
         undo.moveTodo(keep.id, to: nil)
         precondition(Store(file: file).undoStep == nil)
         undo.delete(keep)
+        let archive = Store(file: file)
+        let once = Todo(title: "Einmalig", done: true), weekly = Todo(title: "Wöchentlich", repeatRule: .weekly, done: true), open = Todo(title: "Offen")
+        [once, weekly, open].forEach(archive.save)
+        archive.archiveDone()
+        precondition(Store(file: file).todos.filter(\.archived).map(\.title) == ["Einmalig"])
+        archive.setArchived(weekly.id, true)
+        precondition(Store(file: file).todos.first { $0.id == weekly.id }?.archived == false)
+        archive.toggle(once)
+        precondition(Store(file: file).todos.first { $0.id == once.id }.map { !$0.done && !$0.archived } == true)
+        archive.toggle(once)
+        archive.archiveDone()
+        archive.clearArchive()
+        precondition(Store(file: file).todos.contains { $0.id == weekly.id })
+        precondition(!Store(file: file).todos.contains { $0.id == once.id })
+        archive.undo()
+        precondition(Store(file: file).todos.contains { $0.id == once.id && $0.archived })
+        [once, weekly, open].forEach(archive.delete)
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Europe/Berlin")!
         calendar.firstWeekday = 2
@@ -97,6 +114,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Löschen, Schutz beschädigter Daten")
     }
 }

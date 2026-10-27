@@ -43,6 +43,8 @@ struct Panel: View {
     @State private var cardFrames: [UUID: CGRect] = [:]
     @State private var hoveredCardID: UUID?
     @State private var editingTodoID: UUID?
+    @State private var showArchive = false
+    @State private var confirmClearArchive = false
     @State private var editingTitle = ""
     @FocusState private var titleFieldFocused: Bool
     @AppStorage("dueView") private var dueView = false
@@ -58,7 +60,7 @@ struct Panel: View {
     private var lowPriorityColor: Color { Color(hex: lowPriorityColorHex) }
     private var items: [Todo] {
         let manualOrder = Dictionary(uniqueKeysWithValues: store.todos.enumerated().map { ($1.id, $0) })
-        return store.todos.filter { filter.matches($0) && matchesStatus($0) }.sorted {
+        return store.todos.filter { $0.archived == showArchive && filter.matches($0) && (showArchive || matchesStatus($0)) }.sorted {
             if $0.done != $1.done { return !$0.done }
             if manualSort { return manualOrder[$0.id, default: 0] < manualOrder[$1.id, default: 0] }
             if priorityLevel($0) != priorityLevel($1) { return priorityLevel($0) > priorityLevel($1) }
@@ -114,6 +116,13 @@ struct Panel: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(showSearch ? "Suche schließen" : "Suche öffnen")
                 .help(showSearch ? "Suche schließen" : "To-Dos suchen und filtern")
+                Button { withAnimation(.easeOut(duration: 0.2)) { showArchive.toggle(); confirmClearArchive = false } } label: {
+                    Image(systemName: showArchive ? "archivebox.fill" : "archivebox").font(.title3)
+                        .foregroundStyle(showArchive ? Color.accentColor : Color.primary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(showArchive ? "Archiv schließen" : "Archiv öffnen")
+                .help(showArchive ? "Zurück zur Liste" : "Archiv erledigter To-Dos")
                 Button { withAnimation(.easeOut(duration: 0.2)) { dueView.toggle() } } label: {
                     Image(systemName: dueView ? "calendar.circle.fill" : "calendar").font(.title3)
                         .foregroundStyle(dueView ? Color.accentColor : Color.primary)
@@ -163,13 +172,16 @@ struct Panel: View {
                 if showSearch { filterBar }
                 ScrollView {
                     LazyVStack(spacing: 4) {
+                        if showArchive { archiveHeader }
                         if items.isEmpty {
                             VStack(spacing: 10) {
-                                Image(systemName: filterActive ? "magnifyingglass" : "checkmark.seal").font(.system(size: 34))
-                                Text(filterActive ? "Keine passenden To-Dos." : "Platz für deinen nächsten Plan.")
+                                Image(systemName: filterActive ? "magnifyingglass" : showArchive ? "archivebox" : "checkmark.seal").font(.system(size: 34))
+                                Text(filterActive ? "Keine passenden To-Dos." : showArchive ? "Das Archiv ist leer." : "Platz für deinen nächsten Plan.")
                             }.foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 40)
                         }
-                        if dueView {
+                        if showArchive {
+                            ForEach(items) { item in todoCard(item) }
+                        } else if dueView {
                             ForEach(DueBucket.allCases) { bucket in dueSection(bucket) }
                         } else {
                         VStack(spacing: 4) {
@@ -196,6 +208,18 @@ struct Panel: View {
                 .onPreferenceChange(GroupFramePreferenceKey.self) { groupFrames = $0 }
                 .onPreferenceChange(CardFramePreferenceKey.self) { cardFrames = $0 }
                 .onPreferenceChange(StandardFramePreferenceKey.self) { standardFrame = $0 }
+                .safeAreaInset(edge: .bottom) {
+                    if !showArchive, store.archivableCount > 0 {
+                        Button { withAnimation { store.archiveDone() } } label: {
+                            Label("\(store.archivableCount) erledigte archivieren", systemImage: "archivebox")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 6)
+                        .help("Erledigte, nicht wiederkehrende To-Dos ins Archiv verschieben")
+                    }
+                }
                 .overlay(alignment: .topLeading) {
                     if let draggingTodoID,
                        let draggedTodo = store.todos.first(where: { $0.id == draggingTodoID }) {
@@ -368,6 +392,26 @@ struct Panel: View {
         guard filterActive && draggingTodoID == nil else { return store.groups }
         return store.groups.filter { !groupedItems(for: $0.id).isEmpty }
     }
+    private var archiveHeader: some View {
+        HStack {
+            Text("Archiv").font(.headline)
+            Text("\(items.count)").font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            if store.todos.contains(where: \.archived) {
+                Button(confirmClearArchive ? "Wirklich alle löschen?" : "Archiv leeren") {
+                    if confirmClearArchive {
+                        withAnimation { store.clearArchive() }
+                        confirmClearArchive = false
+                    } else {
+                        confirmClearArchive = true
+                    }
+                }
+                .foregroundStyle(confirmClearArchive ? Color.red : Color.primary)
+            }
+        }
+        .padding(.horizontal, 4)
+        .padding(.bottom, 4)
+    }
     @ViewBuilder private func dueSection(_ bucket: DueBucket) -> some View {
         let now = Date()
         let bucketItems = items.filter { DueBucket($0, now: now) == bucket }
@@ -484,6 +528,11 @@ struct Panel: View {
                     ForEach(store.groups) { Text($0.name).tag(Optional($0.id)) }
                 }
                 Button("Fälligkeit und Wiederholung …") { draftIsNew = false; draft = item }
+                if item.archived {
+                    Button("Wiederherstellen") { withAnimation { store.setArchived(item.id, false) } }
+                } else if item.canArchive {
+                    Button("Archivieren") { withAnimation { store.setArchived(item.id, true) } }
+                }
                 Divider()
                 Button("Löschen", role: .destructive) { withAnimation { store.delete(item) }; rescheduleNotifications() }
             } label: { Image(systemName: "ellipsis") }
@@ -507,7 +556,7 @@ struct Panel: View {
         .simultaneousGesture(DragGesture(minimumDistance: 4, coordinateSpace: .named("todo-list"))
             .onChanged { value in
                 // Time sections are derived from due dates, so there is nothing to drop onto there.
-                guard !dueView, abs(value.translation.width) > 8 || abs(value.translation.height) > 8 else { return }
+                guard !dueView, !showArchive, abs(value.translation.width) > 8 || abs(value.translation.height) > 8 else { return }
                 draggingTodoID = item.id
                 dragLocation = value.location
                 hoveredCardID = manualSort ? cardFrames.first(where: { $0.key != item.id && $0.value.contains(value.location) })?.key : nil
