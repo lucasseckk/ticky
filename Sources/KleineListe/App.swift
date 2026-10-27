@@ -48,6 +48,7 @@ struct Panel: View {
     @State private var editingTitle = ""
     @FocusState private var titleFieldFocused: Bool
     @AppStorage("dueView") private var dueView = false
+    @AppStorage("panelSection") private var section = PanelSection.todos
     @AppStorage("manualSort") private var manualSort = false
     @State private var dragLocation = CGPoint.zero
     @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
@@ -109,6 +110,7 @@ struct Panel: View {
                     Text(store.count == 0 ? "Alles erledigt." : "\(store.count) To-Dos offen").font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
+                if section == .todos && !showSettings {
                 Button(action: toggleSearch) {
                     Image(systemName: "magnifyingglass").font(.title3)
                         .foregroundStyle(showSearch ? Color.accentColor : Color.primary)
@@ -130,6 +132,7 @@ struct Panel: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(dueView ? "Nach Gruppen anzeigen" : "Nach Fälligkeit anzeigen")
                 .help(dueView ? "Nach Gruppen anzeigen" : "Nach Fälligkeit anzeigen: Überfällig, Heute, Morgen …")
+                }
                 Button { showSettings.toggle() } label: {
                     Image(systemName: "gearshape").font(.title3)
                 }
@@ -137,8 +140,18 @@ struct Panel: View {
                 .accessibilityLabel("Einstellungen")
                 .help("Einstellungen öffnen")
             }
+            if !showSettings && draft == nil {
+                Picker("Bereich", selection: $section) {
+                    ForEach(PanelSection.allCases) { Label($0.label, systemImage: $0.systemImage).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+            }
             if showSettings {
                 SettingsView(store: store, onClose: { showSettings = false })
+            } else if section == .dev {
+                DevView()
             } else {
             if draft == nil {
                 HStack {
