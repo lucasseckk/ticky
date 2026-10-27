@@ -1059,46 +1059,46 @@ struct ColorSettingRow: View {
     @State private var showingPicker = false
 
     var body: some View {
-        HStack {
-            Text(label)
-            Spacer()
-            Button {
-                showingPicker = true
-            } label: {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(hex: hex))
-                    .frame(width: 58, height: 28)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color.primary.opacity(0.35), lineWidth: 1)
-                    }
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Farbe für \(label) ändern")
-            .popover(isPresented: $showingPicker, arrowEdge: .trailing) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Farbe auswählen").font(.headline)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 30))], spacing: 8) {
-                        ForEach(Self.palette, id: \.self) { colorHex in
-                            Button {
-                                hex = colorHex
-                                showingPicker = false
-                            } label: {
-                                Circle()
-                                    .fill(Color(hex: colorHex))
-                                    .frame(width: 30, height: 30)
-                                    .overlay {
-                                        Circle().stroke(Color.primary.opacity(hex == colorHex ? 0.9 : 0.25), lineWidth: hex == colorHex ? 3 : 1)
-                                    }
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Farbe \(colorHex)")
+        // Inline instead of a popover: the panel sits at the right screen edge, where a popover has no room.
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(label)
+                Spacer()
+                Button {
+                    withAnimation(.easeOut(duration: 0.15)) { showingPicker.toggle() }
+                } label: {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color(hex: hex))
+                        .frame(width: 58, height: 28)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.primary.opacity(showingPicker ? 0.9 : 0.35), lineWidth: showingPicker ? 2 : 1)
                         }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Farbe für \(label) ändern")
+            }
+            if showingPicker {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 26))], spacing: 8) {
+                    ForEach(Self.palette, id: \.self) { colorHex in
+                        Button {
+                            hex = colorHex
+                            withAnimation(.easeOut(duration: 0.15)) { showingPicker = false }
+                        } label: {
+                            Circle()
+                                .fill(Color(hex: colorHex))
+                                .frame(width: 26, height: 26)
+                                .overlay {
+                                    Circle().stroke(Color.primary.opacity(hex == colorHex ? 0.9 : 0.25), lineWidth: hex == colorHex ? 3 : 1)
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Farbe \(colorHex)")
                     }
                 }
-                .padding(16)
-                .foregroundStyle(.white)
-                .background(Color(white: 0.22), in: RoundedRectangle(cornerRadius: 14))
+                .padding(10)
+                .background(.foreground.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
