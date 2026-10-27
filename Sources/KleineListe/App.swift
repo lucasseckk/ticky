@@ -695,6 +695,7 @@ struct SettingsView: View {
     @AppStorage("lowPriorityReminderHour") private var lowPriorityReminderHour = 9
     @State private var notificationPermission: NotificationPermission?
     @State private var testResult: (text: String, success: Bool)?
+    @State private var dataResult: (text: String, success: Bool)?
 
     private var backgroundIsDark: Bool {
         let cleaned = backgroundColorHex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
@@ -778,6 +779,18 @@ struct SettingsView: View {
                                     Button(action: createPriority) { Label("Anlegen", systemImage: "plus") }
                                         .buttonStyle(.borderedProminent)
                                         .disabled(newPriorityName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                }
+                            }
+                            SettingsCard(title: "Daten sichern", systemImage: "externaldrive", subtitle: "Enthält alle To-Dos, Gruppen mit Notizen und Prioritäten im Klartext – sicher aufbewahren. Vor jedem Import wird der aktuelle Stand automatisch gesichert.") {
+                                HStack {
+                                    Button(action: exportBackup) { Label("Exportieren …", systemImage: "square.and.arrow.up") }
+                                    Button(action: importBackup) { Label("Importieren …", systemImage: "square.and.arrow.down") }
+                                }
+                                if let dataResult {
+                                    Label(dataResult.text, systemImage: dataResult.success ? "checkmark.circle.fill" : "xmark.octagon.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(dataResult.success ? Color.green : Color.red)
+                                        .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
                         }
@@ -892,6 +905,35 @@ struct SettingsView: View {
     @State private var newGroupName = ""
     @State private var newPriorityName = ""
     @State private var newPriorityThreatLevel = 3
+
+    private func exportBackup() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "To-Do-List-Sicherung \(Date().formatted(.iso8601.year().month().day())).json"
+        panel.allowedContentTypes = [.json]
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try store.exportData().write(to: url, options: .atomic)
+            dataResult = ("Exportiert: \(url.lastPathComponent)", true)
+        } catch {
+            dataResult = ("Export fehlgeschlagen: \(error.localizedDescription)", false)
+        }
+    }
+
+    private func importBackup() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let safety = try store.importData(Data(contentsOf: url))
+            rescheduleNotifications()
+            dataResult = ("Importiert. Vorheriger Stand gesichert in Backups/\(safety.lastPathComponent)", true)
+        } catch {
+            dataResult = ("Nichts geändert – \(error.localizedDescription)", false)
+        }
+    }
 
     private func createGroup() {
         store.createGroup(name: newGroupName)
