@@ -183,10 +183,20 @@ struct TodoFilter: Equatable, Sendable {
     }
 }
 
+/// Snapshot taken before a change that can be undone; lives only in memory so no stale step survives a restart.
+struct UndoStep: Identifiable {
+    let id = UUID()
+    let label: String
+    let todos: [Todo]
+    let groups: [TodoGroup]
+    let customPriorities: [CustomPriority]
+}
+
 @MainActor final class Store: ObservableObject {
     @Published private(set) var todos: [Todo] = []
     @Published private(set) var groups: [TodoGroup] = []
     @Published private(set) var customPriorities: [CustomPriority] = []
+    @Published private(set) var undoStep: UndoStep?
     @Published var error: String?
     private var writable = true
     private let file: URL
@@ -219,11 +229,13 @@ struct TodoFilter: Equatable, Sendable {
         persist()
     }
     func toggle(_ item: Todo) {
-        guard var changed = todos.first(where: { $0.id == item.id }) else { return }
+        guard writable, var changed = todos.first(where: { $0.id == item.id }) else { return }
+        recordUndo(changed.done ? "„\(changed.title)“ wieder geöffnet" : "„\(changed.title)“ erledigt")
         changed.done.toggle(); save(changed)
     }
     func moveTodo(_ id: UUID, to groupID: UUID?) {
         guard writable, let index = todos.firstIndex(where: { $0.id == id }) else { return }
+        recordUndo("„\(todos[index].title)“ verschoben")
         todos[index].groupID = groupID
         persist()
     }
@@ -232,6 +244,7 @@ struct TodoFilter: Equatable, Sendable {
         guard writable, id != targetID,
               let from = todos.firstIndex(where: { $0.id == id }),
               let to = todos.firstIndex(where: { $0.id == targetID }) else { return }
+        recordUndo("„\(todos[from].title)“ verschoben")
         var item = todos.remove(at: from)
         item.groupID = todos[to > from ? to - 1 : to].groupID
         todos.insert(item, at: to)
@@ -241,11 +254,13 @@ struct TodoFilter: Equatable, Sendable {
         guard writable, id != targetID,
               let from = groups.firstIndex(where: { $0.id == id }),
               let to = groups.firstIndex(where: { $0.id == targetID }) else { return }
+        recordUndo("Gruppe „\(groups[from].name)“ verschoben")
         groups.insert(groups.remove(at: from), at: to)
         persistGroups()
     }
     func delete(_ item: Todo) {
-        guard writable else { return }
+        guard writable, todos.contains(where: { $0.id == item.id }) else { return }
+        recordUndo("„\(item.title)“ gelöscht")
         todos.removeAll { $0.id == item.id }; persist()
     }
     func createGroup(name: String) {
@@ -264,15 +279,29 @@ struct TodoFilter: Equatable, Sendable {
     }
     func deleteGroup(_ group: TodoGroup) {
         guard writable else { return }
+        recordUndo("Gruppe „\(group.name)“ gelöscht")
         groups.removeAll { $0.id == group.id }
         todos = todos.map { var todo = $0; if todo.groupID == group.id { todo.groupID = nil }; return todo }
         persistGroups(); persist()
     }
     func deleteCustomPriority(_ priority: CustomPriority) {
         guard writable else { return }
+        recordUndo("Priorität „\(priority.name)“ gelöscht")
         customPriorities.removeAll { $0.id == priority.id }
         todos = todos.map { var todo = $0; if todo.customPriorityID == priority.id { todo.customPriorityID = nil }; return todo }
         persistPriorities(); persist()
+    }
+    func undo() {
+        guard writable, let step = undoStep else { return }
+        todos = step.todos; groups = step.groups; customPriorities = step.customPriorities
+        undoStep = nil
+        persist(); persistGroups(); persistPriorities()
+    }
+    func dismissUndo(_ id: UUID) {
+        if undoStep?.id == id { undoStep = nil }
+    }
+    private func recordUndo(_ label: String) {
+        undoStep = UndoStep(label: label, todos: todos, groups: groups, customPriorities: customPriorities)
     }
     func updateCustomPriority(_ priority: CustomPriority) {
         guard writable, let index = customPriorities.firstIndex(where: { $0.id == priority.id }) else { return }
