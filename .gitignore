@@ -16,7 +16,6 @@ dist/
 # Local editor, agent and OMX state
 .vscode/
 .omx/
-AGENTS.md
 
 # macOS metadata
 .AppleDouble
