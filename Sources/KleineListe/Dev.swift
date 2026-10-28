@@ -300,8 +300,13 @@ struct DevView: View {
         case .open: InfoPill(text: "Offen", systemImage: "circle", tint: tint)
         case .inProgress: InfoPill(text: "In Arbeit", systemImage: "gearshape.2", tint: tint)
         case .prOpen:
+            // CI of the linked pull request, taken from the already loaded pull requests.
+            let ci = dev.pullRequests.first { $0.url == issue.pullRequest }?.ci
             Button { if let pr = issue.pullRequest { NSWorkspace.shared.open(pr) } } label: {
-                InfoPill(text: "PR #\(issue.pullRequest?.lastPathComponent ?? "")", systemImage: "arrow.triangle.pull", tint: tint)
+                HStack(spacing: 4) {
+                    if let ci { CIDot(ci: ci).scaleEffect(0.7) }
+                    InfoPill(text: "PR #\(issue.pullRequest?.lastPathComponent ?? "")", systemImage: "arrow.triangle.pull", tint: tint)
+                }
             }
             .buttonStyle(.plain)
             .help("Verknüpften Pull Request öffnen")
