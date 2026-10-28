@@ -159,27 +159,31 @@ struct DevView: View {
 
     /// Dropdown behind the „N Repos“ pill (#89); replaces the list that used to live in the settings.
     private var repoPicker: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Text("Im Dev-Bereich anzeigen").font(.headline)
             if dev.availableRepos.isEmpty {
                 Text("Keine Repositories gefunden.").font(.caption).foregroundStyle(.secondary)
+            } else if dev.availableRepos.count > 10 {
+                ScrollView { repoToggles }.frame(height: 260)
+            } else {
+                repoToggles
             }
-            ScrollView {
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(dev.availableRepos, id: \.self) { repo in
-                        Toggle(repo, isOn: Binding(get: { dev.isSelected(repo) }, set: { selected in
-                            dev.setSelected(repo, selected)
-                            Task { await dev.refresh() }
-                        }))
-                        .toggleStyle(.checkbox)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(height: min(260, CGFloat(dev.availableRepos.count) * 24))
         }
-        .padding(14)
-        .frame(width: 280)
+        .padding(16)
+        .fixedSize()
+    }
+
+    /// The popover hugs this list, so it has no empty space next to or below it.
+    private var repoToggles: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(dev.availableRepos, id: \.self) { repo in
+                Toggle(repo, isOn: Binding(get: { dev.isSelected(repo) }, set: { selected in
+                    dev.setSelected(repo, selected)
+                    Task { await dev.refresh() }
+                }))
+                .toggleStyle(.checkbox)
+            }
+        }
     }
 
     private func urgentCard(_ issue: UrgentIssue) -> some View {
