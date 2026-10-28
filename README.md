@@ -165,7 +165,9 @@ Alles bleibt auf deinem Mac:
 
 | Pfad | Inhalt |
 | --- | --- |
-| `Sources/Ticky/App.swift` | Panel, To-Do-Liste, Einstellungen, Editor |
+| `Sources/Ticky/App.swift` | Panel und To-Do-Liste |
+| `Sources/Ticky/Settings.swift` | Einstellungen |
+| `Sources/Ticky/Editor.swift` | Editor für neue und bestehende To-Dos |
 | `Sources/Ticky/Store.swift` | Datenmodell, Filter, Wiederholungen, Speicherung, Rückgängig, Export/Import |
 | `Sources/Ticky/Dev.swift` | Dev-Bereich: PRs, Issues, Agent-Aufgaben, Claude-Start, Dev-To-dos |
 | `Sources/Ticky/GitHub.swift` | GitHub CLI, PR- und Issue-Parsing, CI-Status, Claude-Startskript |

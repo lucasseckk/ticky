@@ -17,7 +17,7 @@ Vor einem Neubau eine laufende Instanz mit `pkill -x Ticky` beenden.
 
 - Jede Änderung hat ein GitHub-Issue im Format `[P<Priorität>-<laufende Nr>] Titel` (P1 = dringend … P3 = später).
 - Gearbeitet wird auf eigenen Branches (`feature/<issue>-…`, `fix/<issue>-…`, `docs/<issue>-…`). Commits verweisen mit `Refs #N` / `Closes #N` auf das Issue, gemergt wird über Pull Requests.
-- Vor jedem Pull Request: `zsh check.command` muss grün sein, die App muss bauen und starten.
+- Vor jedem Pull Request: `zsh check.command` muss grün sein, die App muss bauen und starten. GitHub Actions führt Checks und Build bei jedem Pull Request aus.
 - Kleine, vollständige Änderungen statt großer Umbauten; neue Logik bekommt einen Check in `Checks/StoreCheck.swift`.
 - Keine Tokens, Passwörter oder persönlichen Daten in Code, Issues oder Screenshots. GitHub-Zugriff läuft ausschließlich über die `gh`-CLI.
 
