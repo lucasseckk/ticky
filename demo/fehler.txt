@@ -1,0 +1,1 @@
+Diese Datei lässt den Demo-Check absichtlich fehlschlagen.
