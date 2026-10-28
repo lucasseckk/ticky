@@ -624,8 +624,13 @@ struct Panel: View {
             HStack(spacing: 5) {
                 if let snoozed { InfoPill(text: "später \(snoozed.formatted(date: .omitted, time: .shortened))", systemImage: "moon.zzz") }
                 if let due = item.due {
-                    InfoPill(text: due.formatted(.dateTime.day().month().hour().minute()), systemImage: "calendar",
-                             tint: !item.done && due < Date() ? .red : .white)
+                    // Overdue is marked by symbol and word, not only by red, so it stays clear on every card color.
+                    if !item.done && due < Date() {
+                        InfoPill(text: "Überfällig · \(due.formatted(.dateTime.day().month().hour().minute()))", systemImage: "exclamationmark.triangle.fill", tint: .red)
+                            .fontWeight(.bold)
+                    } else {
+                        InfoPill(text: due.formatted(.dateTime.day().month().hour().minute()), systemImage: "calendar")
+                    }
                     if item.extraReminder != .none { InfoPill(text: item.extraReminder.label.replacingOccurrences(of: " vorher", with: ""), systemImage: "bell") }
                 }
                 if item.repeatRule != .none { InfoPill(text: item.repeatRule.label, systemImage: "repeat") }

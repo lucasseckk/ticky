@@ -49,7 +49,8 @@ struct InfoPill: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .foregroundStyle(tint == .white ? Color.white.opacity(0.75) : tint)
-            .background(Color.white.opacity(0.08), in: Capsule())
+            .background(tint == .white ? Color.white.opacity(0.08) : Color.black.opacity(0.55), in: Capsule())
+            .overlay(Capsule().strokeBorder(tint == .white ? .clear : tint.opacity(0.5)))
     }
 }
 
