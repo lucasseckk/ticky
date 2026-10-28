@@ -94,13 +94,15 @@ struct Todo: Identifiable, Codable, Sendable {
     var isDev = false
     /// For example the pull request a dev to-do was created from.
     var link: URL?
+    /// A reminder pushed back from a notification (#9); survives restarts.
+    var snoozedUntil: Date?
 
     /// Only finished one-off to-dos may be archived; a recurring one would silently stop coming back.
     var canArchive: Bool { done && repeatRule == .none && !isDev }
     /// The archive shows every finished one-off to-do, explicitly archived or not.
     var showsInArchive: Bool { archived || canArchive }
 
-    enum CodingKeys: String, CodingKey { case id, title, priority, due, repeatRule, repeatDays, groupID, customPriorityID, extraReminder, done, archived, created, isDev, link }
+    enum CodingKeys: String, CodingKey { case id, title, priority, due, repeatRule, repeatDays, groupID, customPriorityID, extraReminder, done, archived, created, isDev, link, snoozedUntil }
     init(title: String, priority: Priority = .normal, due: Date? = nil, repeatRule: RepeatRule = .none, repeatDays: Set<Weekday> = [], groupID: UUID? = nil, customPriorityID: UUID? = nil, extraReminder: ReminderOffset = .none, done: Bool = false, created: Date = Date(), isDev: Bool = false, link: URL? = nil) {
         self.title = title
         self.priority = priority
@@ -131,6 +133,7 @@ struct Todo: Identifiable, Codable, Sendable {
         created = try container.decode(Date.self, forKey: .created)
         isDev = try container.decodeIfPresent(Bool.self, forKey: .isDev) ?? false
         link = try container.decodeIfPresent(URL.self, forKey: .link)
+        snoozedUntil = try container.decodeIfPresent(Date.self, forKey: .snoozedUntil)
     }
 }
 enum PriorityChoice: Hashable, Sendable {
@@ -309,6 +312,16 @@ struct UndoStep: Identifiable {
         else { todos.append(item) }
         persist()
     }
+    /// Marks an open to-do as done, e.g. from a notification action; does nothing if it is already done or gone.
+    func finish(_ id: UUID) {
+        guard let todo = todos.first(where: { $0.id == id }), !todo.done else { return }
+        toggle(todo)
+    }
+    func snooze(_ id: UUID, until date: Date) {
+        guard writable, var todo = todos.first(where: { $0.id == id }) else { return }
+        todo.snoozedUntil = date
+        save(todo)
+    }
     func toggle(_ item: Todo) {
         guard writable, var changed = todos.first(where: { $0.id == item.id }) else { return }
         recordUndo(changed.done ? "„\(changed.title)“ wieder geöffnet" : "„\(changed.title)“ erledigt")
@@ -452,6 +465,29 @@ struct UndoStep: Identifiable {
         do {
             try writePrivately(JSONEncoder().encode(customPriorities), to: prioritiesFile)
         } catch let saveError { self.error = "Custom-Prioritäten konnten nicht gespeichert werden. \(saveError.localizedDescription)" }
+    }
+}
+
+/// Snooze choices offered on a notification (#9).
+enum Snooze: String, CaseIterable, Sendable {
+    case tenMinutes, oneHour, tomorrow
+
+    var label: String {
+        switch self {
+        case .tenMinutes: return "10 Minuten"
+        case .oneHour: return "1 Stunde"
+        case .tomorrow: return "Morgen 9:00"
+        }
+    }
+
+    func date(from now: Date, calendar: Calendar = .current) -> Date {
+        switch self {
+        case .tenMinutes: return now.addingTimeInterval(600)
+        case .oneHour: return now.addingTimeInterval(3600)
+        case .tomorrow:
+            let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now))!
+            return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow)!
+        }
     }
 }
 

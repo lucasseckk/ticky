@@ -54,9 +54,17 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
     private let center = UNUserNotificationCenter.current()
     private let queue = DispatchQueue(label: "notification-scheduling")
     private var generation = 0
+    /// Lets notification actions work without the panel ever being opened (#10).
+    weak var store: Store?
+
+    static let todoCategory = "todo"
+    static let doneAction = "done"
 
     func configure() {
         center.delegate = self
+        let actions = [UNNotificationAction(identifier: Self.doneAction, title: "Erledigen", options: [])]
+            + Snooze.allCases.map { UNNotificationAction(identifier: "snooze-\($0.rawValue)", title: "Später: \($0.label)", options: []) }
+        center.setNotificationCategories([UNNotificationCategory(identifier: Self.todoCategory, actions: actions, intentIdentifiers: [])])
     }
 
     func requestAuthorization(completion: @escaping @Sendable (Bool) -> Void) {
@@ -131,6 +139,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
     }
 
     private func schedule(todo: Todo, customPriorities: [CustomPriority]) {
+        // A snoozed reminder fires once more at the chosen time; the original ones are not repeated.
+        if let until = todo.snoozedUntil, until > Date() {
+            let content = content(subtitle: "Erinnerung · verschoben", body: "„\(todo.title)“ – du wolltest jetzt daran erinnert werden.", kind: .dueSoon, todoID: todo.id, todoTitle: todo.title)
+            let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: until)
+            center.add(UNNotificationRequest(identifier: "todo-\(todo.id)-snooze", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
+        }
         guard let due = todo.due else { return }
         let leadMinutes = automaticLeadMinutes(for: todo, customPriorities: customPriorities)
         if let leadMinutes {
@@ -213,6 +227,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         content.body = body
         if UserDefaults.standard.object(forKey: "notificationSound") as? Bool ?? true { content.sound = .default }
         content.userInfo = ["kind": kind.rawValue, "todoID": todoID?.uuidString ?? "", "todoTitle": todoTitle]
+        if todoID != nil { content.categoryIdentifier = Self.todoCategory }
         return content
     }
 
@@ -230,6 +245,18 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         let content = response.notification.request.content
+        let todoID = UUID(uuidString: content.userInfo["todoID"] as? String ?? "")
+        let action = response.actionIdentifier
+        if let todoID, action == Self.doneAction || action.hasPrefix("snooze-") {
+            let snooze = Snooze(rawValue: String(action.dropFirst("snooze-".count)))
+            Task { @MainActor in
+                guard let store = self.store else { return }
+                if let snooze { store.snooze(todoID, until: snooze.date(from: Date())) } else { store.finish(todoID) }
+                self.reschedule(todos: store.todos, customPriorities: store.customPriorities)
+            }
+            completionHandler()
+            return
+        }
         let kind = NotificationKind(rawValue: content.userInfo["kind"] as? String ?? "") ?? .dueSoon
         let title = content.userInfo["todoTitle"] as? String ?? content.body
         if UserDefaults.standard.object(forKey: "animatedNotificationPopup") as? Bool ?? true {
