@@ -226,6 +226,16 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Snooze, Wiederholungen, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
+        let hostile = "it's $(touch /tmp/x) `id` \"; rm -rf ~"
+        let echo = Process()
+        echo.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        echo.arguments = ["-c", "print -rn -- " + ClaudeScript.quoted(hostile)]
+        let quotedOut = Pipe()
+        echo.standardOutput = quotedOut
+        try echo.run()
+        echo.waitUntilExit()
+        precondition(String(decoding: quotedOut.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self) == hostile)
+        precondition(ClaudeScript.make(folder: "/a b", promptFile: "/p").contains("cd '/a b' || exit 1"))
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Snooze, Wiederholungen, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Claude-Start, Löschen, Schutz beschädigter Daten")
     }
 }

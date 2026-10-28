@@ -272,8 +272,19 @@ struct DevView: View {
             .buttonStyle(.plain)
             .disabled(issue.status == .done)
             .help("Fertigen Prompt für einen Coding-Agent kopieren")
+            Button { startClaude(issue) } label: {
+                Image(systemName: "terminal")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 28, height: 28)
+                    .background(Color.orange.opacity(0.28), in: Circle())
+            }
+            .accessibilityLabel("In Claude Code starten")
+            .buttonStyle(.plain)
+            .disabled(issue.status == .done)
+            .help("Claude Code im Terminal mit diesem Prompt starten")
             Menu {
                 Button("Issue im Browser öffnen") { NSWorkspace.shared.open(issue.url) }
+                Button("Ordner für \(issue.repo) ändern …") { _ = ClaudeTerminal.chooseFolder(for: issue.repo) }
                 if let pr = issue.pullRequest { Button("Pull Request öffnen") { NSWorkspace.shared.open(pr) } }
                 if issue.status == .open { Button("Als „in Arbeit“ markieren") { runAgentAction { try await dev.setInProgress(issue, true) } } }
                 if issue.status == .inProgress { Button("Zurück auf „offen“") { runAgentAction { try await dev.setInProgress(issue, false) } } }
@@ -292,6 +303,19 @@ struct DevView: View {
         .contentShape(RoundedRectangle(cornerRadius: 16))
         .onTapGesture { NSWorkspace.shared.open(issue.url) }
         .help("Issue im Browser öffnen")
+    }
+
+    /// Copies the prompt as well, so it can be pasted again if the session is closed.
+    private func startClaude(_ issue: AgentIssue) {
+        guard let folder = ClaudeTerminal.folder(for: issue.repo) ?? ClaudeTerminal.chooseFolder(for: issue.repo) else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(issue.prompt, forType: .string)
+        do {
+            try ClaudeTerminal.start(prompt: issue.prompt, in: folder)
+            withAnimation(.island) { toast = ("Claude Code startet mit #\(issue.number) in \(folder.lastPathComponent)", true) }
+        } catch {
+            withAnimation(.island) { toast = ("Start fehlgeschlagen: \(error.localizedDescription)", false) }
+        }
     }
 
     @ViewBuilder private func agentStatusPill(_ issue: AgentIssue) -> some View {
@@ -681,5 +705,42 @@ private struct DevTitleField: View {
             .onChange(of: focused) { _, isFocused in if !isFocused { onCommit(text) } }
             .onAppear { text = title }
             .onChange(of: title) { _, newTitle in if !focused { text = newTitle } }
+    }
+}
+
+/// Opens Claude Code in Terminal for an agent issue (#79), in the repo's local folder chosen once per repo.
+@MainActor enum ClaudeTerminal {
+    private static let foldersKey = "repoFolders"
+
+    static func folder(for repo: String) -> URL? {
+        guard let path = (UserDefaults.standard.dictionary(forKey: foldersKey) as? [String: String])?[repo],
+              FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
+    static func chooseFolder(for repo: String) -> URL? {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.message = "Lokalen Ordner von \(repo) wählen – dort startet Claude Code."
+        panel.prompt = "Ordner wählen"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        var folders = UserDefaults.standard.dictionary(forKey: foldersKey) as? [String: String] ?? [:]
+        folders[repo] = url.path
+        UserDefaults.standard.set(folders, forKey: foldersKey)
+        return url
+    }
+
+    static func start(prompt: String, in folder: URL) throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("todo-list-claude", isDirectory: true)
+        let id = UUID().uuidString
+        let promptFile = directory.appendingPathComponent("\(id).txt")
+        let script = directory.appendingPathComponent("\(id).command")
+        try writePrivately(Data(prompt.utf8), to: promptFile)
+        try writePrivately(Data(ClaudeScript.make(folder: folder.path, promptFile: promptFile.path).utf8), to: script)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: script.path)
+        guard let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") else { return }
+        NSWorkspace.shared.open([script], withApplicationAt: terminal, configuration: NSWorkspace.OpenConfiguration())
     }
 }
