@@ -74,8 +74,8 @@ Autostart beim Anmelden, globales Tastenkürzel, Sortierung, Gruppen, eigene Pri
 Voraussetzungen: **macOS 14** oder neuer, Xcode oder Swift 6 mit macOS-SDK.
 
 ```bash
-git clone https://github.com/lucasseckk/to-do-list.git
-cd to-do-list
+git clone https://github.com/lucasseckk/ticky.git
+cd ticky
 zsh check.command          # Regressionstests
 zsh build.command --open   # bauen, installieren und starten
 ```
