@@ -340,6 +340,9 @@ struct RepoSnapshot: Sendable {
     private let defaults: UserDefaults
     private let locate: () -> GitHubCLI?
 
+    /// The dev area starts switched on only where the GitHub CLI is installed (#111).
+    static var enabledByDefault: Bool { GitHubCLI.locate() != nil }
+
     init(defaults: UserDefaults = .standard, locate: @escaping () -> GitHubCLI? = { GitHubCLI.locate() }) {
         self.defaults = defaults
         self.locate = locate

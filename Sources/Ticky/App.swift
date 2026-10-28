@@ -58,6 +58,8 @@ struct Panel: View {
     @FocusState private var focusedCard: UUID?
     @AppStorage("dueView") private var dueView = false
     @AppStorage("panelSection") private var section = PanelSection.todos
+    @AppStorage("showDev") private var showDev = DevStore.enabledByDefault
+    @State private var showShortcuts = false
     @AppStorage("manualSort") private var manualSort = false
     @State private var dragLocation = CGPoint.zero
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
@@ -110,7 +112,7 @@ struct Panel: View {
             HStack(spacing: 6) {
                 statusPill
                 Spacer(minLength: 4)
-                if section == .todos && !showSettings && draft == nil {
+                if (section == .todos || !showDev) && !showSettings && draft == nil {
                     IslandIconButton(systemImage: "magnifyingglass", isOn: showSearch, label: showSearch ? "Suche schließen" : "To-Dos suchen und filtern", action: toggleSearch)
                     IslandIconButton(systemImage: "archivebox", isOn: showArchive, label: showArchive ? "Zurück zur Liste" : "Archiv erledigter To-Dos") {
                         withAnimation(.island) { showArchive.toggle(); confirmClearArchive = false }
@@ -123,12 +125,12 @@ struct Panel: View {
                     withAnimation(.island) { showSettings.toggle() }
                 }
             }
-            if !showSettings && draft == nil {
+            if !showSettings && draft == nil && showDev {
                 IslandSwitch(options: PanelSection.allCases.map { ($0, $0.label, $0.systemImage) }, selection: $section)
             }
             if showSettings {
                 SettingsView(store: store, dev: dev, onClose: { withAnimation(.island) { showSettings = false } })
-            } else if section == .dev {
+            } else if section == .dev && showDev {
                 DevView(dev: dev, store: store)
             } else {
             if draft == nil {
@@ -233,6 +235,14 @@ struct Panel: View {
             if let step = store.undoStep { undoBar(step) }
         }
         .animation(.island, value: store.undoStep?.id)
+        .overlay {
+            if showShortcuts { ShortcutOverlay { withAnimation(.island) { showShortcuts = false } } }
+        }
+        .background {
+            Button("Tastenkürzel") { withAnimation(.island) { showShortcuts.toggle() } }
+                .keyboardShortcut("/", modifiers: .command)
+                .hidden()
+        }
         .padding(18)
         // Always the same height: if the menu bar window resizes, macOS moves it away from the menu bar.
         .frame(width: 460, height: 560, alignment: .top)
@@ -252,7 +262,7 @@ struct Panel: View {
             Text(store.count == 0 ? "Alles erledigt" : "\(store.count) offen")
             Group {
                 if overdueCount > 0 { Text("· \(overdueCount) überfällig") }
-                if !dev.pullRequests(in: .review).isEmpty {
+                if showDev && !dev.pullRequests(in: .review).isEmpty {
                     let reviews = dev.pullRequests(in: .review).count
                     Text(reviews == 1 ? "· 1 PR wartet" : "· \(reviews) PRs warten")
                 }
