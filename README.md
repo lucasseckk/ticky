@@ -1,86 +1,137 @@
+<div align="center">
+
+<img src="docs/images/icon.png" width="112" alt="App-Icon: Uhr mit Gesicht">
+
 # To-Do List
 
-Native macOS-Menüleisten-App für To-dos – gebaut für den Alltag zwischen **Uni und Entwicklung**.
+**Uni-Aufgaben und GitHub-Arbeit an einem Ort – als Insel in deiner Menüleiste.**
 
-Die App ist eine ganz normale To-do-Liste, wie man sie kennt: Aufgaben, Fälligkeiten, Erinnerungen, Gruppen. Das eigentliche Ziel geht aber darüber hinaus: Sie soll der eine Ort sein, an dem ich neben Uni-Aufgaben auch meine **Entwicklungsarbeit** im Blick habe – offene Pull Requests, Reviews, dringende Issues und Aufgaben, die Coding-Agents sehen und abarbeiten können. Deshalb hat die App zwei Bereiche:
+[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?style=flat-square&logo=apple&logoColor=white)](#installation)
+[![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](Package.swift)
+[![SwiftUI](https://img.shields.io/badge/SwiftUI-native-0A84FF?style=flat-square&logo=swift&logoColor=white)](Sources/KleineListe)
+[![Keine Abhängigkeiten](https://img.shields.io/badge/Abh%C3%A4ngigkeiten-keine-34C759?style=flat-square)](Package.swift)
+[![GitHub CLI](https://img.shields.io/badge/GitHub-gh%20CLI-181717?style=flat-square&logo=github&logoColor=white)](#dev-bereich)
+[![Claude Code](https://img.shields.io/badge/Agents-Claude%20Code-D97757?style=flat-square&logo=anthropic&logoColor=white)](#agent-aufgaben)
+[![Daten lokal](https://img.shields.io/badge/Daten-lokal-8E8E93?style=flat-square&logo=icloud&logoColor=white)](#daten-und-datenschutz)
 
-- **To-Dos** – persönliche Aufgaben, z. B. Übungsblätter, Abgaben, Termine
-- **Dev** – GitHub-Arbeit: Pull Requests, Reviews, Agent-Aufgaben und eigene Dev-To-dos (später auch dringende Issues)
+<img src="docs/images/trailer.gif" width="860" alt="Trailer: To-Dos, Editor, Dev-Bereich, Agent-Aufgaben und Notch-Insel">
 
-SwiftUI, keine externen Abhängigkeiten, ab macOS 14. Die Oberfläche ist an Apples Dynamic Island angelehnt: tiefschwarzes Panel, Pillen und Kapseln, leuchtende Farbakzente und kurze, federnde Animationen.
+[Features](#features) · [Installation](#installation) · [Dev-Bereich](#dev-bereich) · [Agent-Aufgaben](#agent-aufgaben) · [Tastatur](#tastatur) · [Datenschutz](#daten-und-datenschutz)
 
-## To-Dos
+</div>
 
-- **Anlegen:** Feld „Was steht an?“ → Titel, Priorität (Hoch, Mittel, Niedrig oder eigene Prioritäten mit Stufe 1–5), Gruppe, Ablaufdatum, Extra-Erinnerung und Wiederholung (täglich, wöchentlich, monatlich, eigene Wochentage).
-- **Karten:** Die Prioritätsfarbe läuft als Verlauf von links ins Schwarze, der Rand schimmert. Darunter zeigen kleine Pillen Datum (rot, wenn überfällig), Erinnerung, Wiederholung und Gruppe.
-- **Schnell bearbeiten:** Doppelklick auf den Titel benennt um. Der runde ⋯-Button ändert Priorität und Gruppe, öffnet Fälligkeit und Wiederholung, archiviert oder löscht.
-- **Gruppen:** Pillen-Kopf mit Farbe und Anzahl, darunter eine Notizzeile, die beim Tippen mitwächst. Gruppen lassen sich am Griff ≡ verschieben, To-Dos per Drag-and-drop in Gruppen, zwischen Gruppen und wieder heraus ziehen.
-- **Sortierung:** automatisch (offen vor erledigt, dann Priorität, Fälligkeit, Erstellung) oder manuell per Drag-and-drop.
-- **Kopfzeile:** Die Status-Pille zeigt offene und überfällige To-Dos sowie wartende Reviews. Daneben: 🔍 Suche mit Filter-Voreinstellungen (Überfällig, Heute, Priorität, Gruppe …), 🗄 Archiv, 📅 Fälligkeitsansicht (Überfällig, Heute, Morgen, Diese Woche, Später), ⚙️ Einstellungen.
-- **Archiv:** Erledigte, nicht wiederkehrende To-Dos landen im Archiv und lassen sich wiederherstellen oder endgültig löschen.
-- **Tastatur:** ⌃⌥T öffnet das Panel von überall (abschaltbar unter Einstellungen → Allgemein → Start), ⌘N legt ein To-do an, ↑/↓ wechseln zwischen Karten, Return benennt um, Leertaste hakt ab, Esc bricht ab.
-- **Rückgängig (⌘Z):** für Löschen, Erledigen, Verschieben, Archivieren und Gruppenänderungen.
-- **Erinnerungen:** lokale macOS-Mitteilungen. Vorlaufzeit je Priorität einstellbar, niedrige Priorität einmal täglich zur gewählten Uhrzeit.
+---
+
+Die App ist eine To-do-Liste, wie man sie kennt – Aufgaben, Fälligkeiten, Erinnerungen, Gruppen. Sie soll aber der **eine Ort** sein, an dem neben Übungsblättern und Abgaben auch die **Entwicklungsarbeit** sichtbar ist: offene Pull Requests, rote CI, dringende Issues und Aufgaben, die Coding-Agents wie Claude Code selbst abarbeiten. Die Oberfläche ist an Apples **Dynamic Island** angelehnt: tiefschwarzes Panel, Pillen und Kapseln, leuchtende Akzente, federnde Animationen.
+
+## Features
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/images/todos.png" alt="To-Do-Liste mit Gruppen, Prioritäten und überfälligem To-do">
+<h3>To-Dos, die mitdenken</h3>
+Prioritäten (auch eigene, Stufe 1–5), Fälligkeiten, Gruppen mit Farbe und Notiz, Wiederholungen und Erinnerungen. Überfälliges leuchtet rot, Status-Pille oben fasst alles zusammen.
+</td>
+<td width="50%" valign="top">
+<img src="docs/images/editor.png" alt="Editor für ein neues To-do">
+<h3>In Sekunden erfasst</h3>
+<kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd> öffnet das Panel von überall, <kbd>⌘</kbd><kbd>N</kbd> legt an. Priorität, Gruppe, Ablaufdatum, Extra-Erinnerung und Wiederholung in einer Ansicht.
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<img src="docs/images/dev.png" alt="Dev-Bereich mit dringenden Issues, Agent-Aufgaben und Dev-To-dos">
+<h3>GitHub im Blick</h3>
+Reviews, rote CI, eigene PRs, dringende Issues und Agent-Aufgaben – live über die GitHub CLI. Mergen mit Zwei-Klick-Bestätigung, ohne dass die App je ein Token sieht.
+</td>
+<td width="50%" valign="top">
+<img src="docs/images/island.png" alt="Notch-Insel eingeklappt und aufgeklappt">
+<h3>Insel an der Notch</h3>
+Optional hängt eine Pille an der Notch: „6 offen · 1 PR wartet“. Beim Darüberfahren klappt sie auf und zeigt das nächste fällige To-do, ein Klick öffnet das Panel.
+</td>
+</tr>
+</table>
+
+<details>
+<summary><b>Alle To-do-Funktionen</b></summary>
+
+- **Karten:** Prioritätsfarbe als Verlauf mit leichtem Schein, darunter Pillen für Datum, Erinnerung, Wiederholung, Gruppe und „später“ (Snooze).
+- **Schnell bearbeiten:** Doppelklick benennt um; das ⋯-Menü ändert Priorität und Gruppe, öffnet Fälligkeit und Wiederholung, archiviert oder löscht.
+- **Gruppen:** Farbiger Pillen-Kopf mit Anzahl und mitwachsender Notizzeile. Gruppen am Griff ≡ verschieben, To-dos per Drag-and-drop hinein, zwischen und wieder heraus ziehen.
+- **Sortierung:** automatisch (offen vor erledigt, dann Priorität, Fälligkeit, Erstellung) oder manuell.
+- **Suche & Ansichten:** Filter-Voreinstellungen (Überfällig, Heute, Priorität, Gruppe …), Fälligkeitsansicht (Überfällig, Heute, Morgen, Diese Woche, Später), Archiv für Erledigtes.
+- **Wiederholungen:** täglich, wöchentlich, monatlich oder an eigenen Wochentagen – Abhaken schiebt auf den nächsten Termin.
+- **Erinnerungen:** lokale macOS-Mitteilungen mit Aktionen „Erledigt“ und „Später“ (10 Min., 1 Std., morgen 9:00). Vorlaufzeit je Priorität einstellbar.
+- **Rückgängig (⌘Z)** für Löschen, Erledigen, Verschieben, Archivieren und Gruppenänderungen.
+- **Start:** optional beim Anmelden (macOS-Anmeldeobjekte, kein Hilfsprogramm); das Panel öffnet sich dort, wo du es verlassen hast.
+
+</details>
+
+## Installation
+
+Voraussetzungen: **macOS 14** oder neuer, Xcode oder Swift 6 mit macOS-SDK.
+
+```bash
+git clone https://github.com/lucasseckk/to-do-list.git
+cd to-do-list
+zsh check.command          # Regressionstests
+zsh build.command --open   # bauen und starten
+```
+
+Die App entsteht unter `dist/todo list.app` und erscheint als Uhr in der Menüleiste. Sie ist lokal ad-hoc signiert und nicht für die öffentliche Verteilung notarisiert. Vor einem Neubau eine laufende Instanz mit `pkill -x ToDoList` beenden.
 
 ## Dev-Bereich
 
-Der Dev-Bereich spricht GitHub **ausschließlich über die GitHub CLI (`gh`)** an. Die App selbst speichert keine Tokens, Passwörter oder Kontodaten – die Anmeldung liegt allein bei `gh`.
-
-### Einrichtung
+Der Dev-Bereich spricht GitHub **ausschließlich über die GitHub CLI** an. Die App speichert keine Tokens, Passwörter oder Kontodaten – die Anmeldung liegt allein bei `gh`.
 
 ```bash
 brew install gh
 gh auth login
 ```
 
-Danach den Dev-Bereich öffnen. Die App findet `gh` unter `/opt/homebrew/bin`, `/usr/local/bin` oder `/usr/bin`. Fehlt die CLI oder ist sie nicht angemeldet, zeigt der Dev-Bereich genau diese Befehle zum Kopieren an.
+Fehlt `gh` oder ist es nicht angemeldet, zeigt der Dev-Bereich genau diese Befehle zum Kopieren an. Repositories wählst du unter **Einstellungen → Allgemein → GitHub** (oder über die Pille „N Repos ▸“).
 
-**Repositories auswählen:** Einstellungen → Allgemein → GitHub. Standardmäßig sind alle eigenen Repositories aktiv. Die Pille „N Repos ▸“ im Dev-Bereich führt direkt dorthin.
-
-### Pull Requests
-
-- **Zähler-Pillen** oben: 👀 Review angefordert, ✕ CI rot, ↗ meine PRs. Ein Klick springt zum passenden Abschnitt.
-- **Abschnitte:** „Review von mir angefordert“, „Meine PRs“, „Sonstige“.
-- **PR-Karte:** CI-Punkt (grün = bestanden, rot = fehlgeschlagen, gelb pulsierend = läuft, grau = keine CI), Titel, `repo #Nr`, Autor, Alter, Draft-Kennzeichen. Klick auf die Karte öffnet den PR im Browser.
-- **Mergen:** nur bei grüner oder fehlender CI und nicht bei Drafts. Erster Klick → „Wirklich mergen?“, zweiter Klick → Merge-Commit (`gh pr merge --merge`). Danach verschwindet die Karte und ein Hinweis bestätigt den Merge.
-- **Aktualisierung:** beim Öffnen des Dev-Bereichs, alle 2 Minuten, solange das Panel offen ist, und per ↻.
-
+| Bereich | Was du siehst und tun kannst |
+| --- | --- |
+| **Zähler-Pillen** | 👀 Review angefordert · ✕ CI rot · ↗ meine PRs – ein Klick springt zum Abschnitt |
+| **Dringende Issues** | Titel mit `[P1…]`, Label `dringend`/`P1` oder dir zugewiesen; nach Rang sortiert, Repo-Filter, als Dev-To-do merken oder an einen Agent übergeben |
+| **Pull Requests** | CI-Punkt (grün, rot, gelb pulsierend, grau), Autor, Alter, Draft. Mergen nur bei grüner oder fehlender CI, mit Zwei-Klick-Bestätigung |
+| **Meine Dev-To-dos** | Lokale Liste nur für Entwicklung; „Als To-do“ auf einer PR-Karte legt ein Review-To-do mit Link an |
+| **Aktualisierung** | beim Öffnen, alle 2 Minuten bei offenem Panel und per ↻ |
 
 ### Agent-Aufgaben
 
-Aufgaben für Coding-Agents (Claude Code, Codex …) sind **GitHub-Issues mit dem Label `agent`**. So kann ein Agent sie selbst finden und lesen – die lokale App-Datei sieht er nicht, GitHub schon.
+Aufgaben für Coding-Agents sind **GitHub-Issues mit dem Label `agent`** – so findet ein Agent sie selbst, ganz ohne Zugriff auf die App.
 
-- **Anlegen:** „Neue Aufgabe“ → Repository, Titel, Aufgabe, Akzeptanzkriterien. Die App legt daraus ein strukturiertes Issue mit Label `agent` an.
-- **Status** (aus GitHub abgeleitet): Offen → In Arbeit (Label `agent:in-arbeit`) → PR offen (ein PR enthält „Closes #Nr“, klickbar) → Erledigt (Issue geschlossen, bleibt eine Woche sichtbar).
-- **An einen Agent übergeben:**
-  - automatisch: Der Agent sucht selbst mit `gh issue list --label agent` – das Vorgehen steht in `AGENTS.md`;
-  - oder per **Prompt**-Button: kopiert einen fertigen Prompt (Issue, Beschreibung, Vorgehen), den du in Claude Code oder Codex einfügst.
-- Klick auf die Karte öffnet das Issue; im ⋯-Menü: PR öffnen, „in Arbeit“ setzen/zurücknehmen, Label entfernen.
-
-### Meine Dev-To-dos
-
-Eigene, lokale Liste nur im Dev-Bereich – für Notizen und Aufgaben, die nicht an einen Agent gehen. Sie erscheinen nicht in der normalen Liste, im Zähler oder im Archiv.
-
-- Über das Eingabefeld anlegen, abhaken, Titel direkt bearbeiten, Priorität ändern, löschen.
-- **„Als To-do“** auf einer PR-Karte legt „Review: <PR-Titel> (repo #Nr)“ an – Priorität Hoch, wenn das Review von mir angefordert ist, sonst Mittel. Der PR-Link hängt als klickbare Pille daran.
-
-## Bauen und starten
-
-Voraussetzungen: macOS 14 oder neuer, Xcode oder Swift 6 mit macOS-SDK.
-
-```bash
-zsh check.command          # Regressionstests
-pkill -x ToDoList          # laufende Instanz beenden
-zsh build.command --open   # bauen und starten
+```mermaid
+flowchart LR
+    A["Neue Aufgabe<br/>in der App"] -->|Issue mit Label agent| B["GitHub"]
+    B --> C["Terminal-Knopf<br/>startet Claude Code"]
+    C -->|"PR mit Closes #Nr"| D["App zeigt<br/>PR offen + CI"]
+    D -->|Merge in der App| E["Erledigt"]
 ```
 
-Die App entsteht unter `dist/todo list.app`. Sie ist lokal ad-hoc signiert und nicht für die öffentliche Verteilung notarisiert.
+- **Anlegen:** „Neue Aufgabe“ → Repository, Titel, Aufgabe, Akzeptanzkriterien. Die App legt ein strukturiertes Issue an.
+- **Claude Code starten:** Der Terminal-Knopf auf der Karte kopiert den fertigen Prompt und öffnet **Terminal mit `claude`** im lokalen Ordner des Repos. Den Ordner wählst du beim ersten Mal (änderbar über ⋯). Der Prompt wird über eine private Datei übergeben, nie als Shell-Befehl – Issue-Text kann nichts ausführen.
+- **Oder selbst übergeben:** Prompt kopieren und in Claude Code oder Codex einfügen – oder der Agent sucht selbst mit `gh issue list --label agent`; das Vorgehen steht in [`AGENTS.md`](AGENTS.md).
+- **Status aus GitHub:** Offen → In Arbeit (`agent:in-arbeit`) → PR offen (mit CI-Punkt) → Erledigt.
 
-**Automatisch starten:** Einstellungen → Allgemein → Start. Das ist ausgeschaltet, bis du es aktivierst, und nutzt die macOS-Anmeldeobjekte (kein Hilfsprogramm). Ausschalten entfernt den Eintrag wieder. Das Panel öffnet sich dort, wo du es verlassen hast (Bereich, Ansicht, Einstellungen-Tab).
+## Tastatur
+
+| Kürzel | Aktion |
+| --- | --- |
+| <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd> | Panel von überall öffnen (abschaltbar) |
+| <kbd>⌘</kbd><kbd>N</kbd> | Neues To-do |
+| <kbd>↑</kbd> <kbd>↓</kbd> | Zwischen Karten wechseln |
+| <kbd>Return</kbd> | Umbenennen |
+| <kbd>Leertaste</kbd> | Abhaken |
+| <kbd>⌘</kbd><kbd>Z</kbd> | Rückgängig |
+| <kbd>Esc</kbd> | Abbrechen |
 
 ## Daten und Datenschutz
 
-Alle Daten liegen lokal unter:
+Alles bleibt auf deinem Mac:
 
 ```text
 ~/Library/Application Support/todo list/
@@ -90,45 +141,31 @@ Alle Daten liegen lokal unter:
 └── Backups/
 ```
 
-- Gespeichert wird atomar. Ist eine Datei beschädigt, überschreibt die App sie nicht.
-- **Export/Import** (Einstellungen → Allgemein → Daten sichern) als JSON. Vor jedem Import wird der bisherige Stand in `Backups/` gesichert. Exporte enthalten alles im Klartext.
-- Darstellung, Repo-Auswahl und der letzte GitHub-Stand liegen in den macOS-Benutzereinstellungen.
-- Keine Tokens oder Zugangsdaten im Projekt oder in der App. Lokale Daten, Build-Ausgaben und Editor-Einstellungen werden von Git ignoriert.
-
-### Sicherheitsgrenzen
-
-- **Dateirechte:** Der Datenordner ist nur für deinen Benutzer zugänglich (`0700`), alle Dateien inklusive Backups und Exporte sind nur für dich lesbar (`0600`). Andere Benutzer auf demselben Mac sehen nichts.
-- **Verschlüsselung:** Die App verschlüsselt nicht selbst, sondern verlässt sich auf **FileVault** (Einstellungen → Datenschutz & Sicherheit). Eine eigene Verschlüsselung mit Schlüssel im Schlüsselbund wurde geprüft und verworfen: Die App ist nur ad-hoc signiert, dadurch ändert sich ihre Signatur bei jedem Build und der Schlüsselbund würde den Zugriff immer wieder neu abfragen oder verweigern – das Risiko, die eigenen Daten auszusperren, wäre größer als der Gewinn. Gegen Programme, die unter deinem Benutzer laufen, hilft beides nicht.
-- **Exporte** sind Klartext-JSON mit allen To-dos und Notizen – wie ein Passwort-freies Dokument behandeln (nicht in geteilte Ordner oder öffentliche Repos legen).
-- **GitHub:** Die App speichert keine Tokens. Zugriff läuft über die `gh`-Anmeldung, die im macOS-Schlüsselbund liegt. In den Benutzereinstellungen landen nur Login-Name, Repo-Liste und Auswahl.
+- **Atomar gespeichert.** Ist eine Datei beschädigt, überschreibt die App sie nicht.
+- **Dateirechte:** Ordner `0700`, Dateien inklusive Backups und Exporte `0600` – andere Benutzer auf dem Mac sehen nichts.
+- **Export/Import** als JSON (Einstellungen → Allgemein → Daten sichern); vor jedem Import wird der bisherige Stand gesichert. Exporte sind Klartext – nicht in geteilte Ordner oder öffentliche Repos legen.
+- **Verschlüsselung** über **FileVault**. Eine eigene Verschlüsselung mit Schlüsselbund wurde verworfen: Die ad-hoc-Signatur ändert sich bei jedem Build, der Schlüsselbund würde den Zugriff immer wieder abfragen oder verweigern.
+- **GitHub:** keine Tokens in der App. In den Benutzereinstellungen liegen nur Login-Name, Repo-Auswahl, lokale Repo-Ordner und der letzte GitHub-Stand.
 
 ## Projektstruktur
 
 | Pfad | Inhalt |
 | --- | --- |
 | `Sources/KleineListe/App.swift` | Panel, To-Do-Liste, Einstellungen, Editor |
-| `Sources/KleineListe/Store.swift` | Datenmodell, Filter, Speicherung, Rückgängig, Export/Import |
-| `Sources/KleineListe/Dev.swift` | Dev-Bereich: PRs, Merge, Agent-Aufgaben, Dev-To-dos |
-| `Sources/KleineListe/GitHub.swift` | Aufruf der GitHub CLI, PR- und Issue-Parsing, CI-Status |
+| `Sources/KleineListe/Store.swift` | Datenmodell, Filter, Wiederholungen, Speicherung, Rückgängig, Export/Import |
+| `Sources/KleineListe/Dev.swift` | Dev-Bereich: PRs, Issues, Agent-Aufgaben, Claude-Start, Dev-To-dos |
+| `Sources/KleineListe/GitHub.swift` | GitHub CLI, PR- und Issue-Parsing, CI-Status, Claude-Startskript |
+| `Sources/KleineListe/NotchIsland.swift` | Insel an der Notch |
 | `Sources/KleineListe/Island.swift` | Gemeinsamer Island-Look (Pillen, Karten, Schalter, Animation) |
-| `Sources/KleineListe/Notifications.swift` | Mitteilungen und Erinnerungen |
-| `Sources/KleineListe/ClockIcon.swift` | Uhr-Icon für Menüleiste und App |
-| `Resources/AppIcon.icns`, `Scripts/` | Farbiges App-Icon und Skript zum Erzeugen der PNGs |
-| `Checks/StoreCheck.swift` | Regressionstests (ohne Netzwerk) |
+| `Sources/KleineListe/Notifications.swift` | Mitteilungen, Erinnerungen, Snooze |
+| `Sources/KleineListe/GlobalShortcut.swift` | Systemweites <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd> |
+| `Sources/KleineListe/ClockIcon.swift` | Uhr-Icon für Menüleiste und App (`Resources/AppIcon.icns`, `Scripts/`) |
+| `Checks/StoreCheck.swift` | Regressionstests ohne Netzwerk |
 | `build.command` / `check.command` | Build und Tests |
 | `AGENTS.md` | Regeln für Coding-Agents in diesem Repository |
 
-### Icons
-
-Die Menüleiste zeigt eine eigene Uhr mit Gesicht: lächelnd, wenn alles erledigt ist, sonst neutral. Das Template-Bild passt sich dem hellen und dunklen macOS-Modus an. `Resources/AppIcon.icns` enthält das passende farbige Finder-Icon. Die gemeinsame Vektorgrafik liegt in `Sources/KleineListe/ClockIcon.swift`. Nach Änderungen erzeugt `zsh check.command` die PNG-Auflösungen neu; das App-Icon lässt sich anschließend mit `iconutil -c icns .build/AppIcon.iconset -o Resources/AppIcon.icns` aktualisieren.
-
 ## Arbeitsweise
 
-- Jede Änderung hat ein GitHub-Issue mit Titel im Format `[P<Priorität>-<laufende Nr>] Titel`.
-- Gearbeitet wird auf eigenen Branches (`feature/<issue>-…`, `fix/<issue>-…`). Commits verweisen auf das Issue (`Refs #N` / `Closes #N`), gemergt wird über Pull Requests.
-- Nach jeder Aufgabe: `check.command` ausführen, App neu bauen und starten (siehe `AGENTS.md`).
-
-## Roadmap
-
-- Dringende Issues im Dev-Bereich (#26)
-- Insel an der Notch als Alternative zum Menüleisten-Panel (#50)
+- Jede Änderung hat ein GitHub-Issue im Format `[P<Priorität>-<laufende Nr>] Titel`.
+- Gearbeitet wird auf eigenen Branches (`feature/<issue>-…`, `fix/<issue>-…`, `docs/<issue>-…`); Commits verweisen mit `Refs #N` / `Closes #N` auf das Issue, gemergt wird über Pull Requests.
+- Vor jedem Abschluss: `zsh check.command`, dann App neu bauen und starten (siehe [`AGENTS.md`](AGENTS.md)).
