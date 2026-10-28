@@ -53,11 +53,9 @@ struct Panel: View {
     @AppStorage("panelSection") private var section = PanelSection.todos
     @AppStorage("manualSort") private var manualSort = false
     @State private var dragLocation = CGPoint.zero
-    @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
     @AppStorage("lowPriorityColor") private var lowPriorityColorHex = "#94BD80"
-    private var backgroundColor: Color { Color(hex: backgroundColorHex) }
     private var highPriorityColor: Color { Color(hex: highPriorityColorHex) }
     private var mediumPriorityColor: Color { Color(hex: mediumPriorityColorHex) }
     private var lowPriorityColor: Color { Color(hex: lowPriorityColorHex) }
@@ -176,8 +174,8 @@ struct Panel: View {
                             }
                         }
                         .contentShape(Rectangle())
-                        .background(Color.accentColor.opacity(hoveringStandard ? 0.15 : 0), in: RoundedRectangle(cornerRadius: 14))
-                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.accentColor.opacity(hoveringStandard ? 0.6 : 0), lineWidth: 2))
+                        .background(Color.white.opacity(hoveringStandard ? 0.06 : 0), in: RoundedRectangle(cornerRadius: 14))
+                        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(hoveringStandard ? 0.4 : 0), lineWidth: 1.5))
                         .background(GeometryReader { proxy in
                             Color.clear.preference(key: StandardFramePreferenceKey.self, value: proxy.frame(in: .named("todo-list")))
                         })
@@ -227,13 +225,7 @@ struct Panel: View {
         .padding(18)
         // Fixed list height: the menu bar window does not reliably grow, so the search bar takes space from the list instead.
         .frame(width: 460, height: draft != nil ? nil : 560, alignment: .top)
-        // Always deep black; the chosen background color only glows in from the top.
-        .background {
-            ZStack {
-                Color.black
-                RadialGradient(colors: [backgroundColor.opacity(0.32), .clear], center: .top, startRadius: 0, endRadius: 320)
-            }
-        }
+        .background(Color.black)
         .environment(\.colorScheme, .dark)
         .opacity(panelVisible ? 1 : 0)
         .scaleEffect(panelVisible ? 1 : 0.94, anchor: .top)
@@ -248,15 +240,13 @@ struct Panel: View {
     }
     private var statusPill: some View {
         HStack(spacing: 6) {
-            Circle().fill(store.count == 0 ? Color.green : backgroundColor).frame(width: 7, height: 7)
-                .shadow(color: store.count == 0 ? .green : backgroundColor, radius: 4)
+            Circle().fill(Color.white.opacity(store.count == 0 ? 0.35 : 0.9)).frame(width: 6, height: 6)
             Text(store.count == 0 ? "Alles erledigt" : "\(store.count) offen")
-            if overdueCount > 0 {
-                Text("· \(overdueCount) überfällig").foregroundStyle(Color.red)
+            Group {
+                if overdueCount > 0 { Text("· \(overdueCount) überfällig") }
+                if !dev.pullRequests(in: .review).isEmpty { Text("· \(dev.pullRequests(in: .review).count) PRs warten") }
             }
-            if !dev.pullRequests(in: .review).isEmpty {
-                Text("· \(dev.pullRequests(in: .review).count) PRs warten").foregroundStyle(Color.orange)
-            }
+            .foregroundStyle(.secondary)
         }
         .font(.callout.weight(.semibold))
         .lineLimit(1)
@@ -268,7 +258,7 @@ struct Panel: View {
     }
     private func undoBar(_ step: UndoStep) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: "arrow.uturn.backward.circle.fill").foregroundStyle(Color.accentColor)
+            Image(systemName: "arrow.uturn.backward.circle.fill").foregroundStyle(.secondary)
             Text(step.label).lineLimit(1)
             Spacer(minLength: 8)
             Button("Rückgängig") {
@@ -286,8 +276,7 @@ struct Panel: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(Color.black, in: Capsule())
-        .overlay(Capsule().strokeBorder(Color.accentColor.opacity(0.5)))
-        .shadow(color: Color.accentColor.opacity(0.4), radius: 10)
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.15)))
         .transition(.move(edge: .bottom).combined(with: .opacity))
         .task(id: step.id) {
             try? await Task.sleep(for: .seconds(8))
@@ -446,7 +435,7 @@ struct Panel: View {
             .sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
         if !bucketItems.isEmpty {
             HStack {
-                Text(bucket.label).font(.headline).foregroundStyle(bucket == .overdue ? Color.red : Color.primary)
+                Text(bucket.label).font(.headline)
                 Text("\(bucketItems.count)").font(.caption).foregroundStyle(.secondary)
                 Spacer()
             }
@@ -462,20 +451,21 @@ struct Panel: View {
         let groupColor = Color(hex: group.colorHex)
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Circle().fill(groupColor).frame(width: 9, height: 9).shadow(color: groupColor, radius: 4)
+                Circle().fill(groupColor).frame(width: 9, height: 9)
                 Text(group.name).font(.headline)
                 Text("\(groupItems.filter { !$0.done }.count)")
                     .font(.caption.weight(.bold))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 1)
-                    .background(groupColor.opacity(0.3), in: Capsule())
+                    .foregroundStyle(.secondary)
+                    .background(Color.white.opacity(0.08), in: Capsule())
                 Spacer()
                 Image(systemName: "line.3.horizontal").foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(Color.black, in: Capsule())
-            .overlay(Capsule().strokeBorder(groupColor.opacity(0.5)))
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.1)))
             .contentShape(Capsule())
             .help("Ziehen, um die Gruppe zu verschieben")
             .gesture(DragGesture(minimumDistance: 8, coordinateSpace: .named("todo-list"))
@@ -508,8 +498,8 @@ struct Panel: View {
             .padding(.leading, 12)
         }
         .padding(8)
-        .background(groupColor.opacity(hoveredGroupID == group.id ? 0.2 : 0.06), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(groupColor.opacity(hoveredGroupID == group.id ? 0.8 : 0.25), lineWidth: 1.5))
+        .background(Color.white.opacity(hoveredGroupID == group.id ? 0.06 : 0.02), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(hoveredGroupID == group.id ? groupColor.opacity(0.7) : Color.white.opacity(0.08), lineWidth: 1))
         .opacity(draggingGroupID == group.id ? 0.4 : 1)
         .background(GeometryReader { proxy in
             Color.clear.preference(key: GroupFramePreferenceKey.self, value: [group.id: proxy.frame(in: .named("todo-list"))])
@@ -530,7 +520,7 @@ struct Panel: View {
         HStack(alignment: .center, spacing: 10) {
             Button { withAnimation(.island) { store.toggle(item) }; rescheduleNotifications() } label: {
                 Image(systemName: item.done ? "checkmark.circle.fill" : "circle").font(.title2)
-                    .foregroundStyle(item.done ? Color.green : Color.white.opacity(0.85))
+                    .foregroundStyle(Color.white.opacity(item.done ? 0.5 : 0.85))
             }.buttonStyle(.plain).accessibilityLabel(item.done ? "Wieder öffnen: \(item.title)" : "Erledigen: \(item.title)")
             VStack(alignment: .leading, spacing: 6) {
                 if editingTodoID == item.id {
@@ -581,14 +571,14 @@ struct Panel: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(minHeight: 56)
-        .islandCard(tint: cardColor(for: item), shimmer: !item.done)
+        .islandCard(stripe: cardColor(for: item))
         .overlay(alignment: .top) {
             if hoveredCardID == item.id {
-                Capsule().fill(Color.white).frame(height: 3).offset(y: -6).shadow(color: .white, radius: 4)
+                Capsule().fill(Color.white).frame(height: 2).offset(y: -5)
             }
         }
         .opacity(draggingTodoID == item.id ? 0.28 : (item.done ? 0.55 : 1))
-        .contentShape(RoundedRectangle(cornerRadius: 18))
+        .contentShape(RoundedRectangle(cornerRadius: 16))
         .background(GeometryReader { proxy in
             Color.clear.preference(key: CardFramePreferenceKey.self, value: [item.id: proxy.frame(in: .named("todo-list"))])
         })
@@ -683,7 +673,7 @@ struct Panel: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
         .frame(width: 260, alignment: .leading)
-        .islandCard(tint: cardColor(for: item), shimmer: false)
+        .islandCard(stripe: cardColor(for: item))
         .opacity(0.75)
         .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
     }
@@ -733,11 +723,9 @@ struct SettingsView: View {
     let onClose: () -> Void
     @State private var selectedTab = 0
     @AppStorage("manualSort") private var manualSort = false
-    @AppStorage("backgroundColorV2") private var backgroundColorHex = "#FF0000"
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
     @AppStorage("lowPriorityColor") private var lowPriorityColorHex = "#94BD80"
-    @AppStorage("defaultBackgroundColor") private var defaultBackgroundHex = "#FF0000"
     @AppStorage("defaultHighPriorityColor") private var defaultHighHex = "#C24033"
     @AppStorage("defaultMediumPriorityColor") private var defaultMediumHex = "#E0A63D"
     @AppStorage("defaultLowPriorityColor") private var defaultLowHex = "#94BD80"
@@ -833,9 +821,6 @@ struct SettingsView: View {
                 } else if selectedTab == 1 {
                     ScrollView(.vertical) {
                         VStack(alignment: .leading, spacing: 12) {
-                            SettingsCard(title: "Hintergrund", systemImage: "paintpalette", subtitle: nil) {
-                                ColorSettingRow(label: "Farbe", hex: $backgroundColorHex)
-                            }
                             SettingsCard(title: "Prioritätsfarben", systemImage: "flag", subtitle: nil) {
                                 ColorSettingRow(label: "Hoch", hex: $highPriorityColorHex)
                                 ColorSettingRow(label: "Mittel", hex: $mediumPriorityColorHex)
@@ -850,12 +835,10 @@ struct SettingsView: View {
                                 }
                             }
                             SettingsCard(title: "Standardfarben", systemImage: "arrow.counterclockwise", subtitle: "Diese Farben werden beim Zurücksetzen verwendet.") {
-                                ColorSettingRow(label: "Hintergrund", hex: $defaultBackgroundHex)
                                 ColorSettingRow(label: "Hoch", hex: $defaultHighHex)
                                 ColorSettingRow(label: "Mittel", hex: $defaultMediumHex)
                                 ColorSettingRow(label: "Niedrig", hex: $defaultLowHex)
                                 Button("Auf Standard zurücksetzen") {
-                                    backgroundColorHex = defaultBackgroundHex
                                     highPriorityColorHex = defaultHighHex
                                     mediumPriorityColorHex = defaultMediumHex
                                     lowPriorityColorHex = defaultLowHex

@@ -76,13 +76,12 @@ struct DevView: View {
             if let toast {
                 Label(toast.text, systemImage: toast.success ? "checkmark.circle.fill" : "xmark.octagon.fill")
                     .font(.callout.weight(.medium))
-                    .foregroundStyle(toast.success ? Color.green : Color.red)
+                    .foregroundStyle(.primary)
                     .lineLimit(2)
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(Color.black, in: Capsule())
-                    .overlay(Capsule().strokeBorder((toast.success ? Color.green : Color.red).opacity(0.5)))
-                    .shadow(color: (toast.success ? Color.green : Color.red).opacity(0.4), radius: 10)
+                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.15)))
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .task(id: toast.text) {
                         try? await Task.sleep(for: .seconds(3))
@@ -133,7 +132,7 @@ struct DevView: View {
         HStack(spacing: 10) {
             Button { withAnimation(.island) { store.toggle(item) } } label: {
                 Image(systemName: item.done ? "checkmark.circle.fill" : "circle").font(.title3)
-                    .foregroundStyle(item.done ? Color.green : Color.white.opacity(0.85))
+                    .foregroundStyle(Color.white.opacity(item.done ? 0.5 : 0.85))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(item.done ? "Wieder öffnen: \(item.title)" : "Erledigen: \(item.title)")
@@ -145,7 +144,7 @@ struct DevView: View {
                 }
                 if let link = item.link {
                     Button { NSWorkspace.shared.open(link) } label: {
-                        InfoPill(text: link.pathComponents.suffix(3).joined(separator: "/"), systemImage: "link", tint: .blue)
+                        InfoPill(text: link.pathComponents.suffix(3).joined(separator: "/"), systemImage: "link")
                     }
                     .buttonStyle(.plain)
                     .help(link.absoluteString)
@@ -170,7 +169,7 @@ struct DevView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .islandCard(tint: color(for: item.priority), shimmer: !item.done)
+        .islandCard(stripe: color(for: item.priority))
         .opacity(item.done ? 0.55 : 1)
         .transition(.asymmetric(insertion: .scale(scale: 0.6, anchor: .top).combined(with: .opacity), removal: .opacity))
     }
@@ -209,7 +208,7 @@ struct DevView: View {
                     .lineLimit(1)
             } else if let login = dev.login {
                 Label("@\(login)", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
+                    .foregroundStyle(.secondary)
             }
             Spacer()
             if let updated = dev.lastUpdated {
@@ -242,16 +241,16 @@ struct DevView: View {
 
     private func counterRow(_ proxy: ScrollViewProxy) -> some View {
         HStack(spacing: 6) {
-            counter("eyes", "Review", reviewCount, .orange) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.review, anchor: .top) } }
-            counter("xmark.circle", "CI rot", failingCount, .red) {
+            counter("eyes", "Review", reviewCount) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.review, anchor: .top) } }
+            counter("xmark.circle", "CI rot", failingCount) {
                 let target = PullRequest.Category.allCases.first { dev.pullRequests(in: $0).contains { $0.ci == .failure } } ?? .review
                 withAnimation(.island) { proxy.scrollTo(target, anchor: .top) }
             }
-            counter("arrow.up.right", "Meine PRs", dev.pullRequests(in: .mine).count, .blue) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.mine, anchor: .top) } }
+            counter("arrow.up.right", "Meine PRs", dev.pullRequests(in: .mine).count) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.mine, anchor: .top) } }
         }
     }
 
-    private func counter(_ systemImage: String, _ label: String, _ count: Int, _ tint: Color, action: @escaping () -> Void) -> some View {
+    private func counter(_ systemImage: String, _ label: String, _ count: Int, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: systemImage)
@@ -259,12 +258,11 @@ struct DevView: View {
                 Text(label).foregroundStyle(.secondary)
             }
             .font(.caption.weight(.semibold))
-            .foregroundStyle(count > 0 ? tint : Color.secondary)
+            .foregroundStyle(count > 0 ? Color.primary : Color.secondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)
             .background(Color.black, in: Capsule())
-            .overlay(Capsule().strokeBorder(count > 0 ? tint.opacity(0.6) : Color.white.opacity(0.1)))
-            .shadow(color: count > 0 ? tint.opacity(0.35) : .clear, radius: 6)
+            .overlay(Capsule().strokeBorder(Color.white.opacity(count > 0 ? 0.25 : 0.1)))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(label): \(count)")
@@ -310,7 +308,6 @@ struct DevView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(confirming ? Color.red : Color.white, in: Capsule())
-                .shadow(color: confirming ? .red.opacity(0.7) : .clear, radius: 8)
             }
             .buttonStyle(.plain)
             .disabled(!pr.canMerge || mergingID != nil)
@@ -331,8 +328,8 @@ struct DevView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .islandCard(tint: CIDot.color(pr.ci), shimmer: false)
-        .contentShape(RoundedRectangle(cornerRadius: 18))
+        .islandCard()
+        .contentShape(RoundedRectangle(cornerRadius: 16))
         .onTapGesture { NSWorkspace.shared.open(pr.url) }
         .help("Im Browser öffnen")
         .onHover { inside in if !inside && confirming { withAnimation(.island) { confirmMergeID = nil } } }
@@ -396,7 +393,6 @@ struct CIDot: View {
         Circle()
             .fill(Self.color(ci))
             .frame(width: 10, height: 10)
-            .shadow(color: Self.color(ci), radius: pulse ? 7 : 3)
             .opacity(ci == .pending && pulse ? 0.45 : 1)
             .onAppear {
                 guard ci == .pending else { return }
