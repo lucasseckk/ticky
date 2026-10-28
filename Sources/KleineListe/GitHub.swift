@@ -184,7 +184,7 @@ struct AgentIssue: Identifiable, Equatable, Sendable {
         if !lines.isEmpty {
             text += "\n## Akzeptanzkriterien\n\n" + lines.map { "- [ ] " + ($0.hasPrefix("- ") ? String($0.dropFirst(2)) : $0) }.joined(separator: "\n") + "\n"
         }
-        return text + "\n---\n_Angelegt über To-Do List für Coding-Agents (Label `\(label)`). Vorgehen siehe AGENTS.md._\n"
+        return text + "\n---\n_Angelegt über Ticky für Coding-Agents (Label `\(label)`). Vorgehen siehe AGENTS.md._\n"
     }
 }
 
