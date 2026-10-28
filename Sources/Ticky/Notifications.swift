@@ -75,8 +75,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         center.setNotificationCategories([UNNotificationCategory(identifier: Self.todoCategory, actions: actions, intentIdentifiers: [])])
     }
 
-    func requestAuthorization(completion: @escaping @Sendable (Bool) -> Void) {
-        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in completion(granted) }
+    /// Async instead of a Bool callback: the callback's reabstraction thunk crashes the Swift 6.1–6.3 optimizer (#104).
+    func requestAuthorization() async -> Bool {
+        (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
     }
 
     func permission(completion: @escaping @Sendable (NotificationPermission) -> Void) {
@@ -123,8 +124,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         center.getNotificationSettings { [weak self] settings in
             guard let self else { return }
             if settings.authorizationStatus == .notDetermined {
-                self.requestAuthorization { granted in
-                    guard granted else {
+                Task {
+                    guard await self.requestAuthorization() else {
                         completion("macOS-Benachrichtigungen wurden nicht erlaubt.")
                         return
                     }
