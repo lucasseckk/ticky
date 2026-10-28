@@ -120,3 +120,49 @@ struct IslandSwitch<Value: Hashable>: View {
         .overlay(Capsule().strokeBorder(Color.white.opacity(0.12)))
     }
 }
+
+/// All keyboard shortcuts at a glance, opened with ⌘/ (#109).
+struct ShortcutOverlay: View {
+    let onClose: () -> Void
+
+    private var shortcuts: [(keys: String, action: String)] {
+        [(GlobalShortcut.label, String(localized: "Panel von überall öffnen")),
+         ("⌘N", String(localized: "Neues To-do")),
+         ("↑ ↓", String(localized: "Zwischen Karten wechseln")),
+         ("↩", String(localized: "Karte umbenennen")),
+         (String(localized: "Leertaste"), String(localized: "Abhaken")),
+         ("⌘Z", String(localized: "Rückgängig")),
+         ("Esc", String(localized: "Abbrechen")),
+         ("⌘/", String(localized: "Diese Übersicht"))]
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.6).onTapGesture(perform: onClose)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Tastenkürzel").font(.headline)
+                    Spacer()
+                    IslandIconButton(systemImage: "xmark", label: String(localized: "Schließen"), action: onClose)
+                        .keyboardShortcut(.cancelAction)
+                }
+                ForEach(shortcuts, id: \.action) { shortcut in
+                    HStack {
+                        Text(shortcut.action)
+                        Spacer()
+                        Text(shortcut.keys)
+                            .font(.callout.weight(.semibold).monospaced())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+            }
+            .padding(16)
+            .frame(width: 320)
+            .background(Color.black, in: RoundedRectangle(cornerRadius: 20))
+            .islandSurface(cornerRadius: 20)
+        }
+        .transition(.opacity)
+    }
+}

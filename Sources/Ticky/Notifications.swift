@@ -22,10 +22,10 @@ enum NotificationKind: String {
 
     var headline: String {
         switch self {
-        case .test: return "Testmitteilung"
-        case .dueSoon: return "Bald fällig"
-        case .overdue: return "Jetzt fällig"
-        case .daily: return "Täglicher Überblick"
+        case .test: return String(localized: "Testmitteilung")
+        case .dueSoon: return String(localized: "Bald fällig")
+        case .overdue: return String(localized: "Jetzt fällig")
+        case .daily: return String(localized: "Täglicher Überblick")
         }
     }
     /// Face shown in the notification and the pop-up (#87).
@@ -70,8 +70,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
 
     func configure() {
         center.delegate = self
-        let actions = [UNNotificationAction(identifier: Self.doneAction, title: "Erledigen", options: [])]
-            + Snooze.allCases.map { UNNotificationAction(identifier: "snooze-\($0.rawValue)", title: "Später: \($0.label)", options: []) }
+        let actions = [UNNotificationAction(identifier: Self.doneAction, title: String(localized: "Erledigen"), options: [])]
+            + Snooze.allCases.map { UNNotificationAction(identifier: "snooze-\($0.rawValue)", title: String(localized: "Später: \($0.label)"), options: []) }
         center.setNotificationCategories([UNNotificationCategory(identifier: Self.todoCategory, actions: actions, intentIdentifiers: [])])
     }
 
@@ -125,7 +125,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
             if settings.authorizationStatus == .notDetermined {
                 self.requestAuthorization { granted in
                     guard granted else {
-                        completion("macOS-Benachrichtigungen wurden nicht erlaubt.")
+                        completion(String(localized: "macOS-Benachrichtigungen wurden nicht erlaubt."))
                         return
                     }
                     self.enqueueTestNotification(completion: completion)
@@ -133,13 +133,13 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
             } else if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional {
                 self.enqueueTestNotification(completion: completion)
             } else {
-                completion("macOS-Benachrichtigungen sind nicht erlaubt. Bitte in Systemeinstellungen > Mitteilungen für Ticky aktivieren.")
+                completion(String(localized: "macOS-Benachrichtigungen sind nicht erlaubt. Bitte in Systemeinstellungen > Mitteilungen für Ticky aktivieren."))
             }
         }
     }
 
     private func enqueueTestNotification(completion: @escaping @Sendable (String?) -> Void) {
-        let content = content(subtitle: NotificationKind.test.headline, body: "Deine Erinnerungen funktionieren.", kind: .test, todoID: nil, todoTitle: "Deine Erinnerungen funktionieren.")
+        let content = content(subtitle: NotificationKind.test.headline, body: String(localized: "Deine Erinnerungen funktionieren."), kind: .test, todoID: nil, todoTitle: String(localized: "Deine Erinnerungen funktionieren."))
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         center.add(UNNotificationRequest(identifier: "test-notification", content: withFace(content), trigger: trigger)) { error in
             completion(error?.localizedDescription)
@@ -149,7 +149,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
     private func schedule(todo: Todo, customPriorities: [CustomPriority]) {
         // A snoozed reminder fires once more at the chosen time; the original ones are not repeated.
         if let until = todo.snoozedUntil, until > Date() {
-            let content = content(subtitle: "Erinnerung · verschoben", body: "„\(todo.title)“ – du wolltest jetzt daran erinnert werden.", kind: .dueSoon, todoID: todo.id, todoTitle: todo.title)
+            let content = content(subtitle: String(localized: "Erinnerung · verschoben"), body: String(localized: "„\(todo.title)“ – du wolltest jetzt daran erinnert werden."), kind: .dueSoon, todoID: todo.id, todoTitle: todo.title)
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: until)
             center.add(UNNotificationRequest(identifier: "todo-\(todo.id)-snooze", content: withFace(content), trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
         }
@@ -188,8 +188,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
     private func add(todo: Todo, fireDate: Date, identifier: String, kind: NotificationKind, remainingMinutes: Int) {
         if todo.repeatRule == .none, fireDate <= Date() { return }
         let content = content(
-            subtitle: kind == .overdue ? kind.headline : "\(kind.headline) · noch \(durationText(remainingMinutes))",
-            body: kind == .overdue ? "„\(todo.title)“ ist jetzt fällig." : "„\(todo.title)“ ist in \(durationText(remainingMinutes)) fällig.",
+            subtitle: kind == .overdue ? kind.headline : String(localized: "\(kind.headline) · noch \(durationText(remainingMinutes))"),
+            body: kind == .overdue ? String(localized: "„\(todo.title)“ ist jetzt fällig.") : String(localized: "„\(todo.title)“ ist in \(durationText(remainingMinutes)) fällig."),
             kind: kind,
             todoID: todo.id,
             todoTitle: todo.title
@@ -224,7 +224,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         var components = DateComponents()
         components.hour = UserDefaults.standard.integer(forKey: "lowPriorityReminderHour").nonZero(or: 9)
         components.minute = 0
-        let content = content(subtitle: NotificationKind.daily.headline, body: "Du hast noch niedrig priorisierte To-Dos offen.", kind: .daily, todoID: nil, todoTitle: "Du hast noch niedrig priorisierte To-Dos offen.")
+        let content = content(subtitle: NotificationKind.daily.headline, body: String(localized: "Du hast noch niedrig priorisierte To-Dos offen."), kind: .daily, todoID: nil, todoTitle: String(localized: "Du hast noch niedrig priorisierte To-Dos offen."))
         center.add(UNNotificationRequest(identifier: "daily-low-priority-summary", content: withFace(content), trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
     }
 
@@ -253,11 +253,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
     }
 
     private func durationText(_ minutes: Int) -> String {
-        if minutes == 1440 { return "1 Tag" }
-        if minutes == 2880 { return "2 Tage" }
-        if minutes == 60 { return "1 Stunde" }
-        if minutes > 60, minutes.isMultiple(of: 60) { return "\(minutes / 60) Stunden" }
-        return "\(minutes) Minuten"
+        if minutes == 1440 { return String(localized: "1 Tag") }
+        if minutes == 2880 { return String(localized: "2 Tage") }
+        if minutes == 60 { return String(localized: "1 Stunde") }
+        if minutes > 60, minutes.isMultiple(of: 60) { return String(localized: "\(minutes / 60) Stunden") }
+        return String(localized: "\(minutes) Minuten")
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {

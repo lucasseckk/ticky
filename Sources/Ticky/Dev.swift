@@ -6,7 +6,7 @@ enum PanelSection: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .todos: return "To-Dos"
+        case .todos: return String(localized: "To-Dos")
         case .dev: return "Dev"
         }
     }
@@ -43,7 +43,7 @@ struct DevView: View {
             if case .failed(let error) = dev.connection, dev.login == nil, dev.availableRepos.isEmpty {
                 setupHint(error)
             } else if dev.connection == .unknown {
-                ProgressView("Verbinde mit GitHub …").frame(maxWidth: .infinity, maxHeight: .infinity)
+                ProgressView(String(localized: "Verbinde mit GitHub …")).frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollViewReader { proxy in
                     VStack(alignment: .leading, spacing: 10) {
@@ -59,13 +59,13 @@ struct DevView: View {
                                 urgentSection
                                 agentSection
                                 devTodos
-                                section(.review, "Review von mir angefordert", "eyes")
-                                section(.mine, "Meine PRs", "arrow.up.right")
-                                section(.other, "Sonstige", "tray")
+                                section(.review, String(localized: "Review von mir angefordert"), "eyes")
+                                section(.mine, String(localized: "Meine PRs"), "arrow.up.right")
+                                section(.other, String(localized: "Sonstige"), "tray")
                                 if PullRequest.Category.allCases.allSatisfy({ dev.pullRequests(in: $0).isEmpty }) {
                                     VStack(spacing: 10) {
                                         Image(systemName: "checkmark.seal").font(.system(size: 34))
-                                        Text(dev.selectedRepos.isEmpty ? "Wähle oben über „Repos“ Repositories aus." : "Keine offenen Pull Requests.")
+                                        Text(dev.selectedRepos.isEmpty ? String(localized: "Wähle oben über „Repos“ Repositories aus.") : String(localized: "Keine offenen Pull Requests."))
                                     }
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity)
@@ -121,7 +121,7 @@ struct DevView: View {
                 Text("\(shown.count)").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if repos.count > 1 {
-                    Menu(urgentRepo.map(repoName) ?? "Alle Repos") {
+                    Menu(urgentRepo.map(repoName) ?? String(localized: "Alle Repos")) {
                         Button("Alle Repos") { withAnimation(.island) { urgentRepo = nil } }
                         Divider()
                         ForEach(repos, id: \.self) { repo in Button(repo) { withAnimation(.island) { urgentRepo = repo } } }
@@ -201,17 +201,17 @@ struct DevView: View {
             Spacer(minLength: 0)
             Menu {
                 Button("Im Browser öffnen") { NSWorkspace.shared.open(issue.url) }
-                Button(linked ? "Bereits als Dev-To-do übernommen" : "Als Dev-To-do übernehmen") {
+                Button(linked ? String(localized: "Bereits als Dev-To-do übernommen") : String(localized: "Als Dev-To-do übernehmen")) {
                     let priority: Priority = issue.rank.priority <= 1 ? .high : issue.rank.priority == 2 ? .normal : .low
                     withAnimation(.island) { store.save(Todo(title: "\(issue.title) (\(repoName(issue.repo)) #\(issue.number))", priority: priority, isDev: true, link: issue.url)) }
-                    withAnimation(.island) { toast = ("Als Dev-To-do gespeichert", true) }
+                    withAnimation(.island) { toast = (String(localized: "Als Dev-To-do gespeichert"), true) }
                 }
                 .disabled(linked)
                 if !issue.isAgent {
                     Button("An Agent übergeben (Label „agent“)") {
                         runAgentAction {
                             try await dev.markAsAgent(issue)
-                            withAnimation(.island) { toast = ("#\(issue.number) ist jetzt eine Agent-Aufgabe", true) }
+                            withAnimation(.island) { toast = (String(localized: "#\(issue.number) ist jetzt eine Agent-Aufgabe"), true) }
                         }
                     }
                 }
@@ -238,7 +238,7 @@ struct DevView: View {
             Text("\(issues.filter { $0.status != .done }.count)").font(.caption).foregroundStyle(.secondary)
             Spacer()
             Button { withAnimation(.island) { showAgentForm.toggle() } } label: {
-                Label(showAgentForm ? "Schließen" : "Neue Aufgabe", systemImage: showAgentForm ? "xmark" : "plus")
+                Label(showAgentForm ? String(localized: "Schließen") : String(localized: "Neue Aufgabe"), systemImage: showAgentForm ? "xmark" : "plus")
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
@@ -310,7 +310,7 @@ struct DevView: View {
             Button {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(issue.prompt, forType: .string)
-                withAnimation(.island) { toast = ("Prompt für #\(issue.number) kopiert – in Claude Code oder Codex einfügen", true) }
+                withAnimation(.island) { toast = (String(localized: "Prompt für #\(issue.number) kopiert – in Claude Code oder Codex einfügen"), true) }
             } label: {
                 Image(systemName: "doc.on.doc")
                     .font(.system(size: 12, weight: .semibold))
@@ -361,17 +361,17 @@ struct DevView: View {
         NSPasteboard.general.setString(issue.prompt, forType: .string)
         do {
             try ClaudeTerminal.start(prompt: issue.prompt, in: folder)
-            withAnimation(.island) { toast = ("Claude Code startet mit #\(issue.number) in \(folder.lastPathComponent)", true) }
+            withAnimation(.island) { toast = (String(localized: "Claude Code startet mit #\(issue.number) in \(folder.lastPathComponent)"), true) }
         } catch {
-            withAnimation(.island) { toast = ("Start fehlgeschlagen: \(error.localizedDescription)", false) }
+            withAnimation(.island) { toast = (String(localized: "Start fehlgeschlagen: \(error.localizedDescription)"), false) }
         }
     }
 
     @ViewBuilder private func agentStatusPill(_ issue: AgentIssue) -> some View {
         let tint = Self.color(issue.status)
         switch issue.status {
-        case .open: InfoPill(text: "Offen", systemImage: "circle", tint: tint)
-        case .inProgress: InfoPill(text: "In Arbeit", systemImage: "gearshape.2", tint: tint)
+        case .open: InfoPill(text: String(localized: "Offen"), systemImage: "circle", tint: tint)
+        case .inProgress: InfoPill(text: String(localized: "In Arbeit"), systemImage: "gearshape.2", tint: tint)
         case .prOpen:
             // CI of the linked pull request, taken from the already loaded pull requests.
             let ci = dev.pullRequests.first { $0.url == issue.pullRequest }?.ci
@@ -383,7 +383,7 @@ struct DevView: View {
             }
             .buttonStyle(.plain)
             .help("Verknüpften Pull Request öffnen")
-        case .done: InfoPill(text: "Erledigt", systemImage: "checkmark", tint: tint)
+        case .done: InfoPill(text: String(localized: "Erledigt"), systemImage: "checkmark", tint: tint)
         }
     }
 
@@ -404,9 +404,9 @@ struct DevView: View {
             do {
                 try await dev.createAgentIssue(repo: repo, title: title, body: body)
                 agentTitle = ""; agentTask = ""; agentCriteria = ""
-                withAnimation(.island) { showAgentForm = false; toast = ("Agent-Aufgabe angelegt", true) }
+                withAnimation(.island) { showAgentForm = false; toast = (String(localized: "Agent-Aufgabe angelegt"), true) }
             } catch {
-                withAnimation(.island) { toast = ("Anlegen fehlgeschlagen: \(error.localizedDescription)", false) }
+                withAnimation(.island) { toast = (String(localized: "Anlegen fehlgeschlagen: \(error.localizedDescription)"), false) }
             }
             agentBusy = false
         }
@@ -415,7 +415,7 @@ struct DevView: View {
     private func runAgentAction(_ action: @escaping () async throws -> Void) {
         Task {
             do { try await action() } catch {
-                withAnimation(.island) { toast = ("Fehlgeschlagen: \(error.localizedDescription)", false) }
+                withAnimation(.island) { toast = (String(localized: "Fehlgeschlagen: \(error.localizedDescription)"), false) }
             }
         }
     }
@@ -457,7 +457,7 @@ struct DevView: View {
                     .foregroundStyle(Color.white.opacity(item.done ? 0.5 : 0.85))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(item.done ? "Wieder öffnen: \(item.title)" : "Erledigen: \(item.title)")
+            .accessibilityLabel(item.done ? String(localized: "Wieder öffnen: \(item.title)") : String(localized: "Erledigen: \(item.title)"))
             VStack(alignment: .leading, spacing: 5) {
                 DevTitleField(title: item.title, done: item.done) { title in
                     guard var todo = store.todos.first(where: { $0.id == item.id }), todo.title != title else { return }
@@ -516,7 +516,7 @@ struct DevView: View {
         let repoName = pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo
         let priority: Priority = pr.category(for: dev.login) == .review ? .high : .normal
         withAnimation(.island) { store.save(Todo(title: "Review: \(pr.title) (\(repoName) #\(pr.number))", priority: priority, isDev: true, link: pr.url)) }
-        withAnimation(.island) { toast = ("Als Dev-To-do gespeichert", true) }
+        withAnimation(.island) { toast = (String(localized: "Als Dev-To-do gespeichert"), true) }
     }
 
     private var reviewCount: Int { dev.pullRequests(in: .review).count }
@@ -566,11 +566,11 @@ struct DevView: View {
     private func counterRow(_ proxy: ScrollViewProxy) -> some View {
         HStack(spacing: 6) {
             counter("eyes", "Review", reviewCount, .orange) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.review, anchor: .top) } }
-            counter("xmark.circle", "CI rot", failingCount, .red) {
+            counter("xmark.circle", String(localized: "CI rot"), failingCount, .red) {
                 let target = PullRequest.Category.allCases.first { dev.pullRequests(in: $0).contains { $0.ci == .failure } } ?? .review
                 withAnimation(.island) { proxy.scrollTo(target, anchor: .top) }
             }
-            counter("arrow.up.right", "Meine PRs", dev.pullRequests(in: .mine).count, .blue) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.mine, anchor: .top) } }
+            counter("arrow.up.right", String(localized: "Meine PRs"), dev.pullRequests(in: .mine).count, .blue) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.mine, anchor: .top) } }
         }
     }
 
@@ -627,7 +627,7 @@ struct DevView: View {
                 if confirming { merge(pr) } else { withAnimation(.island) { confirmMergeID = pr.id } }
             } label: {
                 Group {
-                    if mergingID == pr.id { ProgressView().controlSize(.small) } else { Text(confirming ? "Wirklich mergen?" : "Mergen") }
+                    if mergingID == pr.id { ProgressView().controlSize(.small) } else { Text(confirming ? String(localized: "Wirklich mergen?") : String(localized: "Mergen")) }
                 }
                 .font(.caption.weight(.bold))
                 .foregroundStyle(confirming ? Color.white : Color.black)
@@ -638,9 +638,9 @@ struct DevView: View {
             .buttonStyle(.plain)
             .disabled(!pr.canMerge || mergingID != nil)
             .opacity(pr.canMerge ? 1 : 0.35)
-            .help(pr.canMerge ? "Prüft die CI erneut und mergt mit der Strategie des Repos" : pr.isDraft ? "Draft-PRs können nicht gemergt werden" : "Erst wenn die CI grün ist")
+            .help(pr.canMerge ? String(localized: "Prüft die CI erneut und mergt mit der Strategie des Repos") : pr.isDraft ? String(localized: "Draft-PRs können nicht gemergt werden") : String(localized: "Erst wenn die CI grün ist"))
             Button { addTodo(for: pr) } label: {
-                Label(hasTodo(for: pr) ? "Als To-do ✓" : "Als To-do", systemImage: "plus")
+                Label(hasTodo(for: pr) ? String(localized: "Als To-do ✓") : String(localized: "Als To-do"), systemImage: "plus")
                     .labelStyle(.titleOnly)
                     .font(.caption.weight(.semibold))
                     .padding(.horizontal, 10)
@@ -667,9 +667,9 @@ struct DevView: View {
         Task {
             do {
                 try await dev.merge(pr)
-                withAnimation(.island) { toast = ("PR #\(pr.number) gemergt", true) }
+                withAnimation(.island) { toast = (String(localized: "PR #\(pr.number) gemergt"), true) }
             } catch {
-                withAnimation(.island) { toast = ("Merge fehlgeschlagen: \(error.localizedDescription)", false) }
+                withAnimation(.island) { toast = (String(localized: "Merge fehlgeschlagen: \(error.localizedDescription)"), false) }
             }
             mergingID = nil
             confirmMergeID = nil
@@ -681,8 +681,8 @@ struct DevView: View {
             Image(systemName: "chevron.left.forwardslash.chevron.right").font(.system(size: 34))
             Text(error.localizedDescription).font(.headline)
             Text(error == .missingCLI
-                 ? "Der Dev-Bereich nutzt die GitHub CLI, damit die App selbst keine Zugangsdaten speichert. Im Terminal:"
-                 : error == .notLoggedIn ? "Melde die GitHub CLI einmalig an. Im Terminal:" : "Prüfe deine Verbindung und versuche es erneut.")
+                 ? String(localized: "Der Dev-Bereich nutzt die GitHub CLI, damit die App selbst keine Zugangsdaten speichert. Im Terminal:")
+                 : error == .notLoggedIn ? String(localized: "Melde die GitHub CLI einmalig an. Im Terminal:") : String(localized: "Prüfe deine Verbindung und versuche es erneut."))
                 .font(.callout)
                 .multilineTextAlignment(.center)
             if error == .missingCLI || error == .notLoggedIn {
@@ -729,10 +729,10 @@ struct CIDot: View {
 
     private var label: String {
         switch ci {
-        case .success: return "CI grün"
-        case .failure: return "CI rot"
-        case .pending: return "CI läuft"
-        case .none: return "Keine CI"
+        case .success: return String(localized: "CI grün")
+        case .failure: return String(localized: "CI rot")
+        case .pending: return String(localized: "CI läuft")
+        case .none: return String(localized: "Keine CI")
         }
     }
 }
@@ -772,8 +772,8 @@ private struct DevTitleField: View {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.message = "Lokalen Ordner von \(repo) wählen – dort startet Claude Code."
-        panel.prompt = "Ordner wählen"
+        panel.message = String(localized: "Lokalen Ordner von \(repo) wählen – dort startet Claude Code.")
+        panel.prompt = String(localized: "Ordner wählen")
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return nil }
         var folders = UserDefaults.standard.dictionary(forKey: foldersKey) as? [String: String] ?? [:]

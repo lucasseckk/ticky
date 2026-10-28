@@ -80,7 +80,20 @@ curl -fsSL https://raw.githubusercontent.com/lucasseckk/ticky/main/install.sh | 
 
 Der Installer lädt den Code, baut Ticky auf deinem Mac (beim ersten Mal 1–2 Minuten), legt die App nach `~/Applications/Ticky.app` und startet sie. Weil sie lokal gebaut wird, blockiert macOS sie nicht als unbekannten Download. Für ein Update denselben Befehl erneut ausführen – deine Daten bleiben erhalten.
 
-Ticky erscheint als Uhr in der Menüleiste und im Dock. Danach startest du sie wie jede App: <kbd>⌘</kbd><kbd>Leertaste</kbd> → „Ticky“. Beenden per Rechtsklick aufs Dock-Icon oder unter Einstellungen → Allgemein → Start; dort lässt sich das Dock-Icon auch ausblenden.
+<details>
+<summary><b>Oder fertige App herunterladen</b></summary>
+
+Unter [Releases](https://github.com/lucasseckk/ticky/releases/latest) liegt `Ticky.zip` (Apple Silicon und Intel). Entpacken und `Ticky.app` nach „Programme“ ziehen. Die App ist nicht von Apple notarisiert, deshalb blockiert macOS den ersten Start: Systemeinstellungen → Datenschutz & Sicherheit → bei „Ticky“ auf **Dennoch öffnen** klicken. Alternativ im Terminal:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Ticky.app
+```
+
+Updates: neue Version herunterladen und ersetzen – deine Daten bleiben erhalten.
+
+</details>
+
+Ticky erscheint als Uhr in der Menüleiste und im Dock. Danach startest du sie wie jede App: <kbd>⌘</kbd><kbd>Leertaste</kbd> → „Ticky“. Beenden per Rechtsklick aufs Dock-Icon oder unten unter Einstellungen → Allgemein; dort lässt sich das Dock-Icon auch ausblenden.
 
 <details>
 <summary><b>Selbst bauen</b></summary>
@@ -97,7 +110,7 @@ Mehr für Entwickler – Tests, Arbeitsweise, Agents – steht in [`CONTRIBUTING
 
 ## Dev-Bereich
 
-Der Dev-Bereich spricht GitHub **ausschließlich über die GitHub CLI** an. Die App speichert keine Tokens, Passwörter oder Kontodaten – die Anmeldung liegt allein bei `gh`.
+Der Dev-Bereich lässt sich unter Einstellungen → Allgemein ausblenden; ohne installierte `gh` ist er von Anfang an aus. Er spricht GitHub **ausschließlich über die GitHub CLI** an. Die App speichert keine Tokens, Passwörter oder Kontodaten – die Anmeldung liegt allein bei `gh`.
 
 ```bash
 brew install gh
@@ -135,13 +148,14 @@ flowchart LR
 
 | Kürzel | Aktion |
 | --- | --- |
-| <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd> | Panel von überall öffnen (abschaltbar) |
+| <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd> | Panel von überall öffnen (änderbar unter Einstellungen → Allgemein) |
 | <kbd>⌘</kbd><kbd>N</kbd> | Neues To-do |
 | <kbd>↑</kbd> <kbd>↓</kbd> | Zwischen Karten wechseln |
 | <kbd>Return</kbd> | Umbenennen |
 | <kbd>Leertaste</kbd> | Abhaken |
 | <kbd>⌘</kbd><kbd>Z</kbd> | Rückgängig |
 | <kbd>Esc</kbd> | Abbrechen |
+| <kbd>⌘</kbd><kbd>/</kbd> | Alle Kürzel anzeigen (deutsche Tastatur: <kbd>⌘</kbd><kbd>⇧</kbd><kbd>7</kbd>) |
 
 ## Daten und Datenschutz
 
@@ -157,7 +171,7 @@ Alles bleibt auf deinem Mac:
 
 - **Atomar gespeichert.** Ist eine Datei beschädigt, überschreibt die App sie nicht.
 - **Dateirechte:** Ordner `0700`, Dateien inklusive Backups und Exporte `0600` – andere Benutzer auf dem Mac sehen nichts.
-- **Export/Import** als JSON (Einstellungen → Allgemein → Daten sichern); vor jedem Import wird der bisherige Stand gesichert. Exporte sind Klartext – nicht in geteilte Ordner oder öffentliche Repos legen.
+- **Export/Import** als JSON (Einstellungen → Allgemein → Daten); vor jedem Import wird der bisherige Stand gesichert. Exporte sind Klartext – nicht in geteilte Ordner oder öffentliche Repos legen.
 - **Verschlüsselung** über **FileVault**. Eine eigene Verschlüsselung mit Schlüsselbund wurde verworfen: Die ad-hoc-Signatur ändert sich bei jedem Build, der Schlüsselbund würde den Zugriff immer wieder abfragen oder verweigern.
 - **GitHub:** keine Tokens in der App. In den Benutzereinstellungen liegen nur Login-Name, Repo-Auswahl, lokale Repo-Ordner und der letzte GitHub-Stand.
 
@@ -174,6 +188,7 @@ Alles bleibt auf deinem Mac:
 | `Sources/Ticky/Island.swift` | Gemeinsamer Island-Look (Pillen, Karten, Schalter, Animation) |
 | `Sources/Ticky/Notifications.swift` | Mitteilungen, Erinnerungen, Snooze |
 | `Sources/Ticky/GlobalShortcut.swift` | Systemweites <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd>, Dock-Icon |
+| `Resources/Localizable.en.json` | Englische Übersetzung; Deutsch ist die Ausgangssprache, die Systemsprache entscheidet |
 | `Sources/Ticky/ClockIcon.swift` | Uhr mit Gesichtern für Menüleiste, App-Icon und Mitteilungen (`Resources/AppIcon.icns`, `Scripts/`) |
 | `Checks/StoreCheck.swift` | Regressionstests ohne Netzwerk |
 | `build.command` / `check.command` / `install.sh` | Build, Tests und Installer |
@@ -188,7 +203,7 @@ Alles bleibt auf deinem Mac:
 | Ein Repo fehlt im Dev-Bereich | Auf „N Repos ▾“ klicken und das Repo anhaken. |
 | Terminal-Knopf startet Claude nicht | Claude Code installieren (`npm install -g @anthropic-ai/claude-code`); den Repo-Ordner über ⋯ → „Ordner ändern“ prüfen. |
 | Autostart greift nicht mehr | Einstellungen → Allgemein → Start: einmal aus- und wieder einschalten. |
-| ⌃⌥T reagiert nicht | Ein anderes Programm belegt das Kürzel; unter Einstellungen → Allgemein → Start abschalten und das Menüleisten-Icon nutzen. |
+| ⌃⌥T reagiert nicht | Ein anderes Programm belegt das Kürzel; unter Einstellungen → Allgemein → Start ein anderes Kürzel aufnehmen. |
 
 ## Deinstallieren
 
@@ -199,7 +214,7 @@ rm -rf ~/Library/Application\ Support/Ticky            # To-dos, Gruppen, Backup
 defaults delete de.lucasseck.todolist                  # Einstellungen
 ```
 
-Vorher Autostart unter Einstellungen → Allgemein → Start ausschalten. Wer seine To-dos behalten will, exportiert sie vorher (Einstellungen → Allgemein → Daten sichern).
+Vorher Autostart unter Einstellungen → Allgemein → Start ausschalten. Wer seine To-dos behalten will, exportiert sie vorher (Einstellungen → Allgemein → Daten).
 
 ## Mitwirken & Lizenz
 

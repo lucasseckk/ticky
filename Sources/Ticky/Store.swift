@@ -4,7 +4,7 @@ import AppKit
 enum Priority: Int, Codable, CaseIterable, Identifiable, Sendable {
     case low, normal, high
     var id: Int { rawValue }
-    var label: String { ["Niedrig", "Mittel", "Hoch"][rawValue] }
+    var label: String { [String(localized: "Niedrig"), String(localized: "Mittel"), String(localized: "Hoch")][rawValue] }
 }
 
 enum RepeatRule: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -12,11 +12,11 @@ enum RepeatRule: String, Codable, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .none: return "Nie"
-        case .daily: return "Täglich"
-        case .weekly: return "Wöchentlich"
-        case .monthly: return "Monatlich"
-        case .custom: return "Individuelle Tage"
+        case .none: return String(localized: "Nie")
+        case .daily: return String(localized: "Täglich")
+        case .weekly: return String(localized: "Wöchentlich")
+        case .monthly: return String(localized: "Monatlich")
+        case .custom: return String(localized: "Individuelle Tage")
         }
     }
 }
@@ -24,7 +24,7 @@ enum RepeatRule: String, Codable, CaseIterable, Identifiable, Sendable {
 enum Weekday: Int, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case monday = 2, tuesday, wednesday, thursday, friday, saturday, sunday
     var id: Int { rawValue }
-    var shortLabel: String { ["", "", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][rawValue] }
+    var shortLabel: String { ["", "", String(localized: "Mo"), String(localized: "Di"), String(localized: "Mi"), String(localized: "Do"), String(localized: "Fr"), String(localized: "Sa"), String(localized: "So")][rawValue] }
     /// Calendar counts Sunday as 1; the stored raw value 8 must stay for existing data.
     var calendarWeekday: Int { self == .sunday ? 1 : rawValue }
 }
@@ -57,12 +57,12 @@ enum ReminderOffset: Int, Codable, CaseIterable, Identifiable, Sendable {
     var id: Int { rawValue }
     var label: String {
         switch self {
-        case .none: return "Keine Extra-Erinnerung"
-        case .tenMinutes: return "10 Minuten vorher"
-        case .thirtyMinutes: return "30 Minuten vorher"
-        case .oneHour: return "1 Stunde vorher"
-        case .oneDay: return "1 Tag vorher"
-        case .twoDays: return "2 Tage vorher"
+        case .none: return String(localized: "Keine Extra-Erinnerung")
+        case .tenMinutes: return String(localized: "10 Minuten vorher")
+        case .thirtyMinutes: return String(localized: "30 Minuten vorher")
+        case .oneHour: return String(localized: "1 Stunde vorher")
+        case .oneDay: return String(localized: "1 Tag vorher")
+        case .twoDays: return String(localized: "2 Tage vorher")
         }
     }
 }
@@ -165,9 +165,9 @@ enum StatusFilter: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .open: return "Offen"
-        case .done: return "Erledigt"
-        case .all: return "Alle"
+        case .open: return String(localized: "Offen")
+        case .done: return String(localized: "Erledigt")
+        case .all: return String(localized: "Alle")
         }
     }
 }
@@ -181,11 +181,11 @@ enum DueFilter: String, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
     var label: String {
         switch self {
-        case .all: return "Alle"
-        case .overdue: return "Überfällig"
-        case .today: return "Heute"
-        case .nextSevenDays: return "Nächste 7 Tage"
-        case .none: return "Ohne Datum"
+        case .all: return String(localized: "Alle")
+        case .overdue: return String(localized: "Überfällig")
+        case .today: return String(localized: "Heute")
+        case .nextSevenDays: return String(localized: "Nächste 7 Tage")
+        case .none: return String(localized: "Ohne Datum")
         }
     }
 }
@@ -195,13 +195,13 @@ enum DueBucket: Int, CaseIterable, Identifiable, Sendable {
     var id: Int { rawValue }
     var label: String {
         switch self {
-        case .overdue: return "Überfällig"
-        case .today: return "Heute"
-        case .tomorrow: return "Morgen"
-        case .thisWeek: return "Diese Woche"
-        case .later: return "Später"
-        case .none: return "Ohne Datum"
-        case .past: return "Vergangen"
+        case .overdue: return String(localized: "Überfällig")
+        case .today: return String(localized: "Heute")
+        case .tomorrow: return String(localized: "Morgen")
+        case .thisWeek: return String(localized: "Diese Woche")
+        case .later: return String(localized: "Später")
+        case .none: return String(localized: "Ohne Datum")
+        case .past: return String(localized: "Vergangen")
         }
     }
 
@@ -279,9 +279,9 @@ enum ImportError: LocalizedError {
     case unreadable, unsupportedVersion(Int), duplicateIDs
     var errorDescription: String? {
         switch self {
-        case .unreadable: return "Die Datei ist keine gültige Ticky-Sicherung."
-        case .unsupportedVersion(let version): return "Sicherungsformat \(version) wird nicht unterstützt."
-        case .duplicateIDs: return "Die Sicherung enthält doppelte Einträge."
+        case .unreadable: return String(localized: "Die Datei ist keine gültige Ticky-Sicherung.")
+        case .unsupportedVersion(let version): return String(localized: "Sicherungsformat \(version) wird nicht unterstützt.")
+        case .duplicateIDs: return String(localized: "Die Sicherung enthält doppelte Einträge.")
         }
     }
 }
@@ -318,7 +318,7 @@ struct UndoStep: Identifiable {
         self.prioritiesFile = self.file.deletingLastPathComponent().appendingPathComponent("custom-priorities.json")
         do { todos = try JSONDecoder().decode([Todo].self, from: Data(contentsOf: self.file)) }
         catch let e as CocoaError where e.code == .fileReadNoSuchFile { }
-        catch { writable = false; self.error = "Aufgaben konnten nicht geladen werden. Die Datei bleibt erhalten. \(error.localizedDescription)" }
+        catch { writable = false; self.error = String(localized: "Aufgaben konnten nicht geladen werden. Die Datei bleibt erhalten. \(error.localizedDescription)") }
         if let data = try? Data(contentsOf: groupsFile) { groups = (try? JSONDecoder().decode([TodoGroup].self, from: data)) ?? [] }
         if let data = try? Data(contentsOf: prioritiesFile) { customPriorities = (try? JSONDecoder().decode([CustomPriority].self, from: data)) ?? [] }
     }
@@ -350,20 +350,20 @@ struct UndoStep: Identifiable {
         // A recurring to-do with a date moves on to its next future date instead of staying done (#13).
         if !changed.done, let due = changed.due, var next = changed.repeatRule.next(after: due, days: changed.repeatDays, calendar: calendar) {
             while next <= now, let later = changed.repeatRule.next(after: next, days: changed.repeatDays, calendar: calendar) { next = later }
-            recordUndo("„\(changed.title)“ erledigt – nächster Termin \(next.formatted(.dateTime.weekday(.abbreviated).day().month()))")
+            recordUndo(String(localized: "„\(changed.title)“ erledigt – nächster Termin \(next.formatted(.dateTime.weekday(.abbreviated).day().month()))"))
             changed.due = next
             changed.snoozedUntil = nil
             save(changed)
             return
         }
-        recordUndo(changed.done ? "„\(changed.title)“ wieder geöffnet" : "„\(changed.title)“ erledigt")
+        recordUndo(changed.done ? String(localized: "„\(changed.title)“ wieder geöffnet") : String(localized: "„\(changed.title)“ erledigt"))
         changed.done.toggle()
         if !changed.done { changed.archived = false }
         save(changed)
     }
     func moveTodo(_ id: UUID, to groupID: UUID?) {
         guard writable, let index = todos.firstIndex(where: { $0.id == id }) else { return }
-        recordUndo("„\(todos[index].title)“ verschoben")
+        recordUndo(String(localized: "„\(todos[index].title)“ verschoben"))
         todos[index].groupID = groupID
         persist()
     }
@@ -372,7 +372,7 @@ struct UndoStep: Identifiable {
         guard writable, id != targetID,
               let from = todos.firstIndex(where: { $0.id == id }),
               let to = todos.firstIndex(where: { $0.id == targetID }) else { return }
-        recordUndo("„\(todos[from].title)“ verschoben")
+        recordUndo(String(localized: "„\(todos[from].title)“ verschoben"))
         var item = todos.remove(at: from)
         item.groupID = todos[to > from ? to - 1 : to].groupID
         todos.insert(item, at: to)
@@ -382,13 +382,13 @@ struct UndoStep: Identifiable {
         guard writable, id != targetID,
               let from = groups.firstIndex(where: { $0.id == id }),
               let to = groups.firstIndex(where: { $0.id == targetID }) else { return }
-        recordUndo("Gruppe „\(groups[from].name)“ verschoben")
+        recordUndo(String(localized: "Gruppe „\(groups[from].name)“ verschoben"))
         groups.insert(groups.remove(at: from), at: to)
         persistGroups()
     }
     func delete(_ item: Todo) {
         guard writable, todos.contains(where: { $0.id == item.id }) else { return }
-        recordUndo("„\(item.title)“ gelöscht")
+        recordUndo(String(localized: "„\(item.title)“ gelöscht"))
         todos.removeAll { $0.id == item.id }; persist()
     }
     func createGroup(name: String) {
@@ -407,14 +407,14 @@ struct UndoStep: Identifiable {
     }
     func deleteGroup(_ group: TodoGroup) {
         guard writable else { return }
-        recordUndo("Gruppe „\(group.name)“ gelöscht")
+        recordUndo(String(localized: "Gruppe „\(group.name)“ gelöscht"))
         groups.removeAll { $0.id == group.id }
         todos = todos.map { var todo = $0; if todo.groupID == group.id { todo.groupID = nil }; return todo }
         persistGroups(); persist()
     }
     func deleteCustomPriority(_ priority: CustomPriority) {
         guard writable else { return }
-        recordUndo("Priorität „\(priority.name)“ gelöscht")
+        recordUndo(String(localized: "Priorität „\(priority.name)“ gelöscht"))
         customPriorities.removeAll { $0.id == priority.id }
         todos = todos.map { var todo = $0; if todo.customPriorityID == priority.id { todo.customPriorityID = nil }; return todo }
         persistPriorities(); persist()
@@ -422,19 +422,19 @@ struct UndoStep: Identifiable {
     var archivableCount: Int { todos.filter { $0.canArchive && !$0.archived }.count }
     func archiveDone() {
         guard writable, archivableCount > 0 else { return }
-        recordUndo("\(archivableCount) erledigte archiviert")
+        recordUndo(String(localized: "\(archivableCount) erledigte archiviert"))
         todos = todos.map { var todo = $0; if todo.canArchive { todo.archived = true }; return todo }
         persist()
     }
     func setArchived(_ id: UUID, _ archived: Bool) {
         guard writable, let index = todos.firstIndex(where: { $0.id == id }), !archived || todos[index].canArchive else { return }
-        recordUndo(archived ? "„\(todos[index].title)“ archiviert" : "„\(todos[index].title)“ wiederhergestellt")
+        recordUndo(archived ? String(localized: "„\(todos[index].title)“ archiviert") : String(localized: "„\(todos[index].title)“ wiederhergestellt"))
         todos[index].archived = archived
         persist()
     }
     func clearArchive() {
         guard writable, todos.contains(where: \.showsInArchive) else { return }
-        recordUndo("Archiv geleert")
+        recordUndo(String(localized: "Archiv geleert"))
         todos.removeAll(where: \.showsInArchive)
         persist()
     }
@@ -454,7 +454,7 @@ struct UndoStep: Identifiable {
         let safety = directory.appendingPathComponent("vor-import-\(stamp).json")
         try writePrivately(exportData(), to: safety)
         let groupIDs = Set(backup.groups.map(\.id)), priorityIDs = Set(backup.customPriorities.map(\.id))
-        recordUndo("Sicherung importiert")
+        recordUndo(String(localized: "Sicherung importiert"))
         todos = backup.todos.map { todo in
             var todo = todo
             if let id = todo.groupID, !groupIDs.contains(id) { todo.groupID = nil }
@@ -486,17 +486,17 @@ struct UndoStep: Identifiable {
         do {
             try writePrivately(JSONEncoder().encode(todos), to: file)
             error = nil
-        } catch { self.error = "Speichern fehlgeschlagen. Änderungen sind vorerst nur im Arbeitsspeicher. \(error.localizedDescription)" }
+        } catch { self.error = String(localized: "Speichern fehlgeschlagen. Änderungen sind vorerst nur im Arbeitsspeicher. \(error.localizedDescription)") }
     }
     private func persistGroups() {
         do {
             try writePrivately(JSONEncoder().encode(groups), to: groupsFile)
-        } catch let saveError { self.error = "Gruppen konnten nicht gespeichert werden. \(saveError.localizedDescription)" }
+        } catch let saveError { self.error = String(localized: "Gruppen konnten nicht gespeichert werden. \(saveError.localizedDescription)") }
     }
     private func persistPriorities() {
         do {
             try writePrivately(JSONEncoder().encode(customPriorities), to: prioritiesFile)
-        } catch let saveError { self.error = "Custom-Prioritäten konnten nicht gespeichert werden. \(saveError.localizedDescription)" }
+        } catch let saveError { self.error = String(localized: "Custom-Prioritäten konnten nicht gespeichert werden. \(saveError.localizedDescription)") }
     }
 }
 
@@ -506,9 +506,9 @@ enum Snooze: String, CaseIterable, Sendable {
 
     var label: String {
         switch self {
-        case .tenMinutes: return "10 Minuten"
-        case .oneHour: return "1 Stunde"
-        case .tomorrow: return "Morgen 9:00"
+        case .tenMinutes: return String(localized: "10 Minuten")
+        case .oneHour: return String(localized: "1 Stunde")
+        case .tomorrow: return String(localized: "Morgen 9:00")
         }
     }
 

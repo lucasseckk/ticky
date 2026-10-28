@@ -1,9 +1,43 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// System-wide ⌃⌥T that opens the menu bar panel (#6). Carbon hot keys need no accessibility permission.
+/// System-wide shortcut that opens the menu bar panel (#6), ⌃⌥T unless the user records another (#110).
+/// Carbon hot keys need no accessibility permission.
 @MainActor enum GlobalShortcut {
-    static let label = "⌃⌥T"
+    static let defaultKey = (code: UInt32(kVK_ANSI_T), modifiers: UInt32(controlKey | optionKey), key: "T")
+
+    static var keyCode: UInt32 { (UserDefaults.standard.object(forKey: "shortcutKeyCode") as? Int).map(UInt32.init) ?? defaultKey.code }
+    static var modifiers: UInt32 { (UserDefaults.standard.object(forKey: "shortcutModifiers") as? Int).map(UInt32.init) ?? defaultKey.modifiers }
+    static var label: String { label(modifiers: modifiers, key: UserDefaults.standard.string(forKey: "shortcutKey") ?? defaultKey.key) }
+
+    static func label(modifiers: UInt32, key: String) -> String {
+        [(controlKey, "⌃"), (optionKey, "⌥"), (shiftKey, "⇧"), (cmdKey, "⌘")]
+            .filter { modifiers & UInt32($0.0) != 0 }.map(\.1).joined() + key
+    }
+
+    /// Carbon modifier mask for a recorded key; nil without ⌘, ⌃ or ⌥, because such a shortcut would swallow normal typing.
+    static func carbonModifiers(_ flags: NSEvent.ModifierFlags) -> UInt32? {
+        guard !flags.isDisjoint(with: [.command, .control, .option]) else { return nil }
+        var mask = 0
+        if flags.contains(.control) { mask |= controlKey }
+        if flags.contains(.option) { mask |= optionKey }
+        if flags.contains(.shift) { mask |= shiftKey }
+        if flags.contains(.command) { mask |= cmdKey }
+        return UInt32(mask)
+    }
+
+    static func save(keyCode: UInt16, modifiers: UInt32, key: String) {
+        let defaults = UserDefaults.standard
+        defaults.set(Int(keyCode), forKey: "shortcutKeyCode")
+        defaults.set(Int(modifiers), forKey: "shortcutModifiers")
+        defaults.set(key, forKey: "shortcutKey")
+        setEnabled(defaults.object(forKey: "globalShortcut") as? Bool ?? true)
+    }
+
+    static func reset() {
+        ["shortcutKeyCode", "shortcutModifiers", "shortcutKey"].forEach(UserDefaults.standard.removeObject)
+        setEnabled(UserDefaults.standard.object(forKey: "globalShortcut") as? Bool ?? true)
+    }
     private static var hotKey: EventHotKeyRef?
     private static var handler: EventHandlerRef?
 
@@ -21,7 +55,7 @@ import Carbon.HIToolbox
             }, 1, &spec, nil, &handler)
         }
         let id = EventHotKeyID(signature: OSType(0x544F_444F), id: 1) // "TODO"
-        RegisterEventHotKey(UInt32(kVK_ANSI_T), UInt32(controlKey | optionKey), id, GetApplicationEventTarget(), 0, &hotKey)
+        RegisterEventHotKey(keyCode, modifiers, id, GetApplicationEventTarget(), 0, &hotKey)
     }
 
     /// MenuBarExtra has no API to open its window, so the shortcut clicks the app's status item.

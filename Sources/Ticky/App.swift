@@ -58,6 +58,8 @@ struct Panel: View {
     @FocusState private var focusedCard: UUID?
     @AppStorage("dueView") private var dueView = false
     @AppStorage("panelSection") private var section = PanelSection.todos
+    @AppStorage("showDev") private var showDev = DevStore.enabledByDefault
+    @State private var showShortcuts = false
     @AppStorage("manualSort") private var manualSort = false
     @State private var dragLocation = CGPoint.zero
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
@@ -110,31 +112,31 @@ struct Panel: View {
             HStack(spacing: 6) {
                 statusPill
                 Spacer(minLength: 4)
-                if section == .todos && !showSettings && draft == nil {
-                    IslandIconButton(systemImage: "magnifyingglass", isOn: showSearch, label: showSearch ? "Suche schließen" : "To-Dos suchen und filtern", action: toggleSearch)
-                    IslandIconButton(systemImage: "archivebox", isOn: showArchive, label: showArchive ? "Zurück zur Liste" : "Archiv erledigter To-Dos") {
+                if (section == .todos || !showDev) && !showSettings && draft == nil {
+                    IslandIconButton(systemImage: "magnifyingglass", isOn: showSearch, label: showSearch ? String(localized: "Suche schließen") : String(localized: "To-Dos suchen und filtern"), action: toggleSearch)
+                    IslandIconButton(systemImage: "archivebox", isOn: showArchive, label: showArchive ? String(localized: "Zurück zur Liste") : String(localized: "Archiv erledigter To-Dos")) {
                         withAnimation(.island) { showArchive.toggle(); confirmClearArchive = false }
                     }
-                    IslandIconButton(systemImage: "calendar", isOn: dueView, label: dueView ? "Nach Gruppen anzeigen" : "Nach Fälligkeit anzeigen: Überfällig, Heute, Morgen …") {
+                    IslandIconButton(systemImage: "calendar", isOn: dueView, label: dueView ? String(localized: "Nach Gruppen anzeigen") : String(localized: "Nach Fälligkeit anzeigen: Überfällig, Heute, Morgen …")) {
                         withAnimation(.island) { dueView.toggle() }
                     }
                 }
-                IslandIconButton(systemImage: "gearshape", isOn: showSettings, label: "Einstellungen") {
+                IslandIconButton(systemImage: "gearshape", isOn: showSettings, label: String(localized: "Einstellungen")) {
                     withAnimation(.island) { showSettings.toggle() }
                 }
             }
-            if !showSettings && draft == nil {
+            if !showSettings && draft == nil && showDev {
                 IslandSwitch(options: PanelSection.allCases.map { ($0, $0.label, $0.systemImage) }, selection: $section)
             }
             if showSettings {
                 SettingsView(store: store, dev: dev, onClose: { withAnimation(.island) { showSettings = false } })
-            } else if section == .dev {
+            } else if section == .dev && showDev {
                 DevView(dev: dev, store: store)
             } else {
             if draft == nil {
                 Button(action: openNewEditor) {
                     HStack {
-                        Text(title.isEmpty ? "Was steht an?" : title)
+                        Text(title.isEmpty ? String(localized: "Was steht an?") : title)
                             .foregroundStyle(title.isEmpty ? .secondary : .primary)
                         Spacer()
                         Image(systemName: "plus")
@@ -167,7 +169,7 @@ struct Panel: View {
                         if items.isEmpty {
                             VStack(spacing: 10) {
                                 Image(systemName: filterActive ? "magnifyingglass" : showArchive ? "archivebox" : "checkmark.seal").font(.system(size: 34))
-                                Text(filterActive ? "Keine passenden To-Dos." : showArchive ? "Das Archiv ist leer." : "Platz für deinen nächsten Plan.")
+                                Text(filterActive ? String(localized: "Keine passenden To-Dos.") : showArchive ? String(localized: "Das Archiv ist leer.") : String(localized: "Platz für deinen nächsten Plan."))
                             }.foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 40)
                         }
                         if showArchive {
@@ -233,6 +235,14 @@ struct Panel: View {
             if let step = store.undoStep { undoBar(step) }
         }
         .animation(.island, value: store.undoStep?.id)
+        .overlay {
+            if showShortcuts { ShortcutOverlay { withAnimation(.island) { showShortcuts = false } } }
+        }
+        .background {
+            Button("Tastenkürzel") { withAnimation(.island) { showShortcuts.toggle() } }
+                .keyboardShortcut("/", modifiers: .command)
+                .hidden()
+        }
         .padding(18)
         // Always the same height: if the menu bar window resizes, macOS moves it away from the menu bar.
         .frame(width: 460, height: 560, alignment: .top)
@@ -249,12 +259,12 @@ struct Panel: View {
     private var statusPill: some View {
         HStack(spacing: 6) {
             Circle().fill(Color.white.opacity(store.count == 0 ? 0.35 : 0.9)).frame(width: 6, height: 6)
-            Text(store.count == 0 ? "Alles erledigt" : "\(store.count) offen")
+            Text(store.count == 0 ? String(localized: "Alles erledigt") : String(localized: "\(store.count) offen"))
             Group {
                 if overdueCount > 0 { Text("· \(overdueCount) überfällig") }
-                if !dev.pullRequests(in: .review).isEmpty {
+                if showDev && !dev.pullRequests(in: .review).isEmpty {
                     let reviews = dev.pullRequests(in: .review).count
-                    Text(reviews == 1 ? "· 1 PR wartet" : "· \(reviews) PRs warten")
+                    Text(reviews == 1 ? String(localized: "· 1 PR wartet") : String(localized: "· \(reviews) PRs warten"))
                 }
             }
             .foregroundStyle(.secondary)
@@ -357,27 +367,27 @@ struct Panel: View {
                         .help("Suche und Filter zurücksetzen")
                 }
             }
-            presetRow("Schnell") {
-                presetChip("Überfällig", "exclamationmark.circle", filter.due == .overdue) { filter.due = filter.due == .overdue ? .all : .overdue }
-                presetChip("Heute", "calendar", filter.due == .today) { filter.due = filter.due == .today ? .all : .today }
-                presetChip("Ohne Datum", "calendar.badge.minus", filter.due == DueFilter.none) { filter.due = filter.due == DueFilter.none ? .all : DueFilter.none }
-                presetChip("Erledigt", "checkmark.circle", statusFilter == .done) { statusFilter = statusFilter == .done ? .open : .done }
+            presetRow(String(localized: "Schnell")) {
+                presetChip(String(localized: "Überfällig"), "exclamationmark.circle", filter.due == .overdue) { filter.due = filter.due == .overdue ? .all : .overdue }
+                presetChip(String(localized: "Heute"), "calendar", filter.due == .today) { filter.due = filter.due == .today ? .all : .today }
+                presetChip(String(localized: "Ohne Datum"), "calendar.badge.minus", filter.due == DueFilter.none) { filter.due = filter.due == DueFilter.none ? .all : DueFilter.none }
+                presetChip(String(localized: "Erledigt"), "checkmark.circle", statusFilter == .done) { statusFilter = statusFilter == .done ? .open : .done }
             }
-            presetRow("Priorität") {
+            presetRow(String(localized: "Priorität")) {
                 ForEach(Priority.allCases.reversed()) { priority in
                     priorityChip(priority.label, .standard(priority))
                 }
             }
-            presetRow("Eigene") {
+            presetRow(String(localized: "Eigene")) {
                 ForEach(store.customPriorities) { priority in
                     priorityChip(priority.name, .custom(priority.id))
                 }
                 if store.customPriorities.isEmpty {
-                    presetChip("Eigene Priorität anlegen", "plus", false) { showSettings = true }
+                    presetChip(String(localized: "Eigene Priorität anlegen"), "plus", false) { showSettings = true }
                 }
             }
-            presetRow("Gruppe") {
-                presetChip("Ohne Gruppe", "tray", filter.group == .ungrouped) { filter.group = filter.group == .ungrouped ? .all : .ungrouped }
+            presetRow(String(localized: "Gruppe")) {
+                presetChip(String(localized: "Ohne Gruppe"), "tray", filter.group == .ungrouped) { filter.group = filter.group == .ungrouped ? .all : .ungrouped }
                 ForEach(store.groups) { group in
                     presetChip(group.name, "folder", filter.group == .group(group.id)) {
                         filter.group = filter.group == .group(group.id) ? .all : .group(group.id)
@@ -426,7 +436,7 @@ struct Panel: View {
             Text("\(items.count)").font(.caption).foregroundStyle(.secondary)
             Spacer()
             if store.todos.contains(where: \.showsInArchive) {
-                Button(confirmClearArchive ? "Wirklich alle löschen?" : "Archiv leeren") {
+                Button(confirmClearArchive ? String(localized: "Wirklich alle löschen?") : String(localized: "Archiv leeren")) {
                     if confirmClearArchive {
                         withAnimation(.island) { store.clearArchive() }
                         confirmClearArchive = false
@@ -546,7 +556,7 @@ struct Panel: View {
             Button { withAnimation(.island) { store.toggle(item) }; rescheduleNotifications() } label: {
                 Image(systemName: item.done ? "checkmark.circle.fill" : "circle").font(.title2)
                     .foregroundStyle(Color.white.opacity(item.done ? 0.5 : 0.85))
-            }.buttonStyle(.plain).accessibilityLabel(item.done ? "Wieder öffnen: \(item.title)" : "Erledigen: \(item.title)")
+            }.buttonStyle(.plain).accessibilityLabel(item.done ? String(localized: "Wieder öffnen: \(item.title)") : String(localized: "Erledigen: \(item.title)"))
             VStack(alignment: .leading, spacing: 6) {
                 if editingTodoID == item.id {
                     TextField("Titel", text: $editingTitle)
@@ -653,16 +663,16 @@ struct Panel: View {
         let snoozed = item.snoozedUntil.flatMap { $0 > Date() && !item.done ? $0 : nil }
         if item.due != nil || item.repeatRule != .none || group != nil || snoozed != nil {
             HStack(spacing: 5) {
-                if let snoozed { InfoPill(text: "später \(snoozed.formatted(date: .omitted, time: .shortened))", systemImage: "moon.zzz") }
+                if let snoozed { InfoPill(text: String(localized: "später \(snoozed.formatted(date: .omitted, time: .shortened))"), systemImage: "moon.zzz") }
                 if let due = item.due {
                     // Overdue is marked by symbol and word, not only by red, so it stays clear on every card color.
                     if !item.done && due < Date() {
-                        InfoPill(text: "Überfällig · \(due.formatted(.dateTime.day().month().hour().minute()))", systemImage: "exclamationmark.triangle.fill", tint: .red)
+                        InfoPill(text: String(localized: "Überfällig · \(due.formatted(.dateTime.day().month().hour().minute()))"), systemImage: "exclamationmark.triangle.fill", tint: .red)
                             .fontWeight(.bold)
                     } else {
                         InfoPill(text: due.formatted(.dateTime.day().month().hour().minute()), systemImage: "calendar")
                     }
-                    if item.extraReminder != .none { InfoPill(text: item.extraReminder.label.replacingOccurrences(of: " vorher", with: ""), systemImage: "bell") }
+                    if item.extraReminder != .none { InfoPill(text: item.extraReminder.label.replacingOccurrences(of: String(localized: " vorher"), with: ""), systemImage: "bell") }
                 }
                 if item.repeatRule != .none { InfoPill(text: item.repeatRule.label, systemImage: "repeat") }
                 if let group { InfoPill(text: group.name, systemImage: "folder", tint: Color(hex: group.colorHex)) }
