@@ -164,9 +164,8 @@ struct SettingsView: View {
                                 Toggle("System-Push und Banner", isOn: $notificationsEnabled)
                                     .onChange(of: notificationsEnabled) { _, enabled in
                                         if enabled {
-                                            Task {
-                                                _ = await NotificationManager.shared.requestAuthorization()
-                                                refreshNotificationPermission()
+                                            NotificationManager.shared.requestAuthorization { _ in
+                                                DispatchQueue.main.async { refreshNotificationPermission() }
                                             }
                                         } else {
                                             rescheduleNotifications()
