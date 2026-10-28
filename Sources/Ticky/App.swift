@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 import ServiceManagement
 
-@main struct ToDoListApp: App {
+@main struct TickyApp: App {
     @NSApplicationDelegateAdaptor(NotificationAppDelegate.self) private var appDelegate
     @StateObject private var store: Store
     @StateObject private var dev = DevStore()
