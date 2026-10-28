@@ -80,6 +80,19 @@ curl -fsSL https://raw.githubusercontent.com/lucasseckk/ticky/main/install.sh | 
 
 Der Installer lädt den Code, baut Ticky auf deinem Mac (beim ersten Mal 1–2 Minuten), legt die App nach `~/Applications/Ticky.app` und startet sie. Weil sie lokal gebaut wird, blockiert macOS sie nicht als unbekannten Download. Für ein Update denselben Befehl erneut ausführen – deine Daten bleiben erhalten.
 
+<details>
+<summary><b>Oder fertige App herunterladen</b></summary>
+
+Unter [Releases](https://github.com/lucasseckk/ticky/releases/latest) liegt `Ticky.zip` (Apple Silicon und Intel). Entpacken und `Ticky.app` nach „Programme“ ziehen. Die App ist nicht von Apple notarisiert, deshalb blockiert macOS den ersten Start: Systemeinstellungen → Datenschutz & Sicherheit → bei „Ticky“ auf **Dennoch öffnen** klicken. Alternativ im Terminal:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Ticky.app
+```
+
+Updates: neue Version herunterladen und ersetzen – deine Daten bleiben erhalten.
+
+</details>
+
 Ticky erscheint als Uhr in der Menüleiste und im Dock. Danach startest du sie wie jede App: <kbd>⌘</kbd><kbd>Leertaste</kbd> → „Ticky“. Beenden per Rechtsklick aufs Dock-Icon oder unten unter Einstellungen → Allgemein; dort lässt sich das Dock-Icon auch ausblenden.
 
 <details>
