@@ -160,6 +160,10 @@ import Foundation
         precondition(PullRequest.ci(of: [("COMPLETED", "SKIPPED", nil), ("IN_PROGRESS", nil, nil)]) == .pending)
         precondition(PullRequest.ci(of: [(nil, nil, "PENDING")]) == .pending)
         precondition(PullRequest.ci(of: [(nil, nil, "ERROR")]) == .failure)
+        let examples = PullRequest.examples(login: "lucas")
+        precondition(examples.allSatisfy(\.isExample) && Set(examples.map(\.id)).count == examples.count)
+        precondition(examples.filter { $0.category(for: "lucas") == .review }.count == 3)
+        precondition(examples.contains { $0.ci == .failure && !$0.canMerge } && examples.contains { $0.isDraft && !$0.canMerge })
         let original = Data("unlesbare Daten".utf8)
         try original.write(to: file)
         let corrupt = Store(file: file)
@@ -167,6 +171,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Dev-To-dos, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Beispiel-PRs, Dev-To-dos, Löschen, Schutz beschädigter Daten")
     }
 }

@@ -82,8 +82,25 @@ struct PullRequest: Identifiable, Equatable, Sendable {
     let url: URL
     let reviewRequests: [String]
     let ci: CI
+    /// Sample data that shows how the Dev section works; never sent to GitHub.
+    var isExample = false
 
     var id: String { "\(repo)#\(number)" }
+
+    static func examples(login: String) -> [PullRequest] {
+        func pr(_ repo: String, _ number: Int, _ title: String, _ author: String, hoursAgo: Double, _ ci: CI, draft: Bool = false, review: Bool = false) -> PullRequest {
+            PullRequest(repo: "beispiel/\(repo)", number: number, title: title, author: author, created: Date().addingTimeInterval(-hoursAgo * 3600),
+                        isDraft: draft, url: URL(string: "https://github.com/\(login)")!, reviewRequests: review ? [login] : [], ci: ci, isExample: true)
+        }
+        return [
+            pr("uni-app", 12, "Login-Seite überarbeiten", "anna", hoursAgo: 3, .success, review: true),
+            pr("uni-app", 14, "Datenbank-Migration für Kurse", "max", hoursAgo: 26, .failure, review: true),
+            pr("agent-tools", 7, "Agent liest Issues mit Label „agent“", "anna", hoursAgo: 1, .pending, review: true),
+            pr("uni-app", 15, "Übungsblatt-Parser", login, hoursAgo: 5, .success),
+            pr("agent-tools", 9, "Workflow für Agent-Issues", login, hoursAgo: 50, .none, draft: true),
+            pr("uni-app", 11, "Abhängigkeiten aktualisieren", "dependabot", hoursAgo: 72, .success),
+        ]
+    }
     /// Merging is only offered when nothing is failing or still running.
     var canMerge: Bool { !isDraft && (ci == .success || ci == .none) }
 
@@ -138,6 +155,8 @@ struct PullRequest: Identifiable, Equatable, Sendable {
     @Published private(set) var pullRequests: [PullRequest] = []
     /// Repositories whose pull requests could not be loaded in the last refresh.
     @Published private(set) var failedRepos: [String] = []
+    @Published var showsExamples: Bool { didSet { defaults.set(showsExamples, forKey: "devExamples") } }
+    @Published private(set) var mergedExamples: Set<String> = []
 
     private let defaults: UserDefaults
     private let locate: () -> GitHubCLI?
@@ -146,6 +165,7 @@ struct PullRequest: Identifiable, Equatable, Sendable {
         self.defaults = defaults
         self.locate = locate
         chosenRepos = defaults.stringArray(forKey: "devRepos")
+        showsExamples = defaults.object(forKey: "devExamples") as? Bool ?? true
         // Last successful result, shown with its timestamp until the next refresh finishes.
         if let cache = defaults.dictionary(forKey: "devCache"),
            let login = cache["login"] as? String, let repos = cache["repos"] as? [String], let updated = cache["updated"] as? Date {
@@ -176,11 +196,17 @@ struct PullRequest: Identifiable, Equatable, Sendable {
     }
 
     func pullRequests(in category: PullRequest.Category) -> [PullRequest] {
-        pullRequests.filter { selectedRepos.contains($0.repo) && $0.category(for: login) == category }
+        let examples = showsExamples ? login.map(PullRequest.examples).map { $0.filter { !mergedExamples.contains($0.id) } } ?? [] : []
+        return (examples + pullRequests.filter { selectedRepos.contains($0.repo) }).filter { $0.category(for: login) == category }
     }
 
     /// Merge commit, as agreed in #25; removes the pull request locally on success.
     func merge(_ pr: PullRequest) async throws {
+        if pr.isExample {
+            try? await Task.sleep(for: .milliseconds(600))
+            mergedExamples.insert(pr.id)
+            return
+        }
         guard let cli = locate() else { throw GitHubError.missingCLI }
         _ = try await cli.run(["pr", "merge", String(pr.number), "-R", pr.repo, "--merge"], timeout: 60)
         pullRequests.removeAll { $0.id == pr.id }
