@@ -56,6 +56,7 @@ struct Panel: View {
     @State private var confirmClearArchive = false
     @State private var editingTitle = ""
     @FocusState private var titleFieldFocused: Bool
+    @FocusState private var focusedCard: UUID?
     @AppStorage("dueView") private var dueView = false
     @AppStorage("panelSection") private var section = PanelSection.todos
     @AppStorage("manualSort") private var manualSort = false
@@ -151,6 +152,8 @@ struct Panel: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Neues To-Do anlegen")
+                .keyboardShortcut("n", modifiers: .command)
+                .help("Neues To-Do (⌘N)")
             }
             if let error = store.error { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
             if let todo = draft {
@@ -440,8 +443,7 @@ struct Panel: View {
     }
     @ViewBuilder private func dueSection(_ bucket: DueBucket) -> some View {
         let now = Date()
-        let bucketItems = items.filter { DueBucket($0, now: now) == bucket }
-            .sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
+        let bucketItems = dueItems(bucket, now: now)
         if !bucketItems.isEmpty {
             HStack {
                 Text(bucket.label).font(.headline)
@@ -452,6 +454,21 @@ struct Panel: View {
             .padding(.horizontal, 4)
             ForEach(bucketItems) { item in todoCard(item) }
         }
+    }
+    private func dueItems(_ bucket: DueBucket, now: Date) -> [Todo] {
+        items.filter { DueBucket($0, now: now) == bucket }.sorted { ($0.due ?? .distantFuture) < ($1.due ?? .distantFuture) }
+    }
+    /// Cards in the order they are shown, for ↑/↓ (#6).
+    private var displayOrder: [UUID] {
+        if showArchive { return items.map(\.id) }
+        if dueView { let now = Date(); return DueBucket.allCases.flatMap { dueItems($0, now: now) }.map(\.id) }
+        return (standardItems + visibleGroups.flatMap { groupedItems(for: $0.id) }).map(\.id)
+    }
+    private func moveFocus(from id: UUID, by step: Int) -> KeyPress.Result {
+        let order = displayOrder
+        guard let index = order.firstIndex(of: id), order.indices.contains(index + step) else { return .ignored }
+        focusedCard = order[index + step]
+        return .handled
     }
     private var standardItems: [Todo] { items.filter { $0.groupID == nil } }
     private func groupedItems(for groupID: UUID) -> [Todo] { items.filter { $0.groupID == groupID } }
@@ -588,6 +605,19 @@ struct Panel: View {
         }
         .opacity(draggingTodoID == item.id ? 0.28 : (item.done ? 0.55 : 1))
         .contentShape(RoundedRectangle(cornerRadius: 16))
+        // Keyboard: ↑/↓ move between cards, Return renames, Space checks off (#6).
+        .focusable(editingTodoID != item.id)
+        .focused($focusedCard, equals: item.id)
+        .focusEffectDisabled()
+        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(focusedCard == item.id ? 0.6 : 0), lineWidth: 1.5))
+        .onKeyPress(.upArrow) { moveFocus(from: item.id, by: -1) }
+        .onKeyPress(.downArrow) { moveFocus(from: item.id, by: 1) }
+        .onKeyPress(.return) { startEditingTitle(item); return .handled }
+        .onKeyPress(.space) {
+            withAnimation(.island) { store.toggle(item) }
+            rescheduleNotifications()
+            return .handled
+        }
         .background(GeometryReader { proxy in
             Color.clear.preference(key: CardFramePreferenceKey.self, value: [item.id: proxy.frame(in: .named("todo-list"))])
         })
@@ -740,6 +770,7 @@ struct SettingsView: View {
     @AppStorage("settingsTab") private var selectedTab = 0
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var launchHint: String?
+    @AppStorage("globalShortcut") private var globalShortcut = true
     @AppStorage("manualSort") private var manualSort = false
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
@@ -772,6 +803,11 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             SettingsCard(title: "Start", systemImage: "power", subtitle: "Startet To-Do List automatisch, wenn du dich bei macOS anmeldest. Ausschalten entfernt den Eintrag wieder vollständig.") {
                                 Toggle("Beim Anmelden automatisch starten", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
+                                Toggle("Panel überall mit \(GlobalShortcut.label) öffnen", isOn: $globalShortcut)
+                                    .onChange(of: globalShortcut) { _, enabled in GlobalShortcut.setEnabled(enabled) }
+                                Text("Im Panel: ⌘N neues To-do · ↑↓ zwischen Karten · Return umbenennen · Leertaste abhaken · Esc abbrechen")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                                 if let launchHint {
                                     Text(launchHint).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                                     Button("Anmeldeobjekte in den Systemeinstellungen öffnen") { SMAppService.openSystemSettingsLoginItems() }
@@ -1275,6 +1311,7 @@ struct Editor: View {
             .islandSurface(cornerRadius: 18)
             HStack {
                 Button("Abbrechen", action: onCancel).buttonStyle(.plain).foregroundStyle(.secondary)
+                    .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button {
                     todo.due = hasDue ? date : nil

@@ -18,6 +18,7 @@ SwiftUI, keine externen Abhängigkeiten, ab macOS 14. Die Oberfläche ist an App
 - **Sortierung:** automatisch (offen vor erledigt, dann Priorität, Fälligkeit, Erstellung) oder manuell per Drag-and-drop.
 - **Kopfzeile:** Die Status-Pille zeigt offene und überfällige To-Dos sowie wartende Reviews. Daneben: 🔍 Suche mit Filter-Voreinstellungen (Überfällig, Heute, Priorität, Gruppe …), 🗄 Archiv, 📅 Fälligkeitsansicht (Überfällig, Heute, Morgen, Diese Woche, Später), ⚙️ Einstellungen.
 - **Archiv:** Erledigte, nicht wiederkehrende To-Dos landen im Archiv und lassen sich wiederherstellen oder endgültig löschen.
+- **Tastatur:** ⌃⌥T öffnet das Panel von überall (abschaltbar unter Einstellungen → Allgemein → Start), ⌘N legt ein To-do an, ↑/↓ wechseln zwischen Karten, Return benennt um, Leertaste hakt ab, Esc bricht ab.
 - **Rückgängig (⌘Z):** für Löschen, Erledigen, Verschieben, Archivieren und Gruppenänderungen.
 - **Erinnerungen:** lokale macOS-Mitteilungen. Vorlaufzeit je Priorität einstellbar, niedrige Priorität einmal täglich zur gewählten Uhrzeit.
 
