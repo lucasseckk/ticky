@@ -21,12 +21,12 @@ enum NotificationKind: String {
         case .daily: return "Täglicher Überblick"
         }
     }
-    var symbol: String {
+    /// Face shown in the notification and the pop-up (#87).
+    var mood: ClockIcon.Mood {
         switch self {
-        case .test: return "👋"
-        case .dueSoon: return "⏰"
-        case .overdue: return "🚨"
-        case .daily: return "☀️"
+        case .test, .daily: return .happy
+        case .dueSoon: return .stressed
+        case .overdue: return .overdue
         }
     }
     var tint: Color {
@@ -134,7 +134,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
     private func enqueueTestNotification(completion: @escaping @Sendable (String?) -> Void) {
         let content = content(subtitle: NotificationKind.test.headline, body: "Deine Erinnerungen funktionieren.", kind: .test, todoID: nil, todoTitle: "Deine Erinnerungen funktionieren.")
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-        center.add(UNNotificationRequest(identifier: "test-notification", content: content, trigger: trigger)) { error in
+        center.add(UNNotificationRequest(identifier: "test-notification", content: withFace(content), trigger: trigger)) { error in
             completion(error?.localizedDescription)
         }
     }
@@ -144,7 +144,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         if let until = todo.snoozedUntil, until > Date() {
             let content = content(subtitle: "Erinnerung · verschoben", body: "„\(todo.title)“ – du wolltest jetzt daran erinnert werden.", kind: .dueSoon, todoID: todo.id, todoTitle: todo.title)
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: until)
-            center.add(UNNotificationRequest(identifier: "todo-\(todo.id)-snooze", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
+            center.add(UNNotificationRequest(identifier: "todo-\(todo.id)-snooze", content: withFace(content), trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
         }
         guard let due = todo.due else { return }
         let leadMinutes = automaticLeadMinutes(for: todo, customPriorities: customPriorities)
@@ -188,7 +188,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
             todoTitle: todo.title
         )
         for (suffix, trigger) in triggers(for: fireDate, rule: todo.repeatRule, days: todo.repeatDays) {
-            center.add(UNNotificationRequest(identifier: "todo-\(todo.id)-\(identifier)-\(suffix)", content: content, trigger: trigger))
+            center.add(UNNotificationRequest(identifier: "todo-\(todo.id)-\(identifier)-\(suffix)", content: withFace(content), trigger: trigger))
         }
     }
 
@@ -218,7 +218,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         components.hour = UserDefaults.standard.integer(forKey: "lowPriorityReminderHour").nonZero(or: 9)
         components.minute = 0
         let content = content(subtitle: NotificationKind.daily.headline, body: "Du hast noch niedrig priorisierte To-Dos offen.", kind: .daily, todoID: nil, todoTitle: "Du hast noch niedrig priorisierte To-Dos offen.")
-        center.add(UNNotificationRequest(identifier: "daily-low-priority-summary", content: content, trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
+        center.add(UNNotificationRequest(identifier: "daily-low-priority-summary", content: withFace(content), trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
     }
 
     private func content(subtitle: String, body: String, kind: NotificationKind, todoID: UUID?, todoTitle: String) -> UNMutableNotificationContent {
@@ -230,6 +230,19 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         content.userInfo = ["kind": kind.rawValue, "todoID": todoID?.uuidString ?? "", "todoTitle": todoTitle]
         if todoID != nil { content.categoryIdentifier = Self.todoCategory }
         return content
+    }
+
+    /// Adds the face as image. Each request needs its own file, because the system moves attachments into its store.
+    private func withFace(_ content: UNMutableNotificationContent) -> UNNotificationContent {
+        let kind = NotificationKind(rawValue: content.userInfo["kind"] as? String ?? "") ?? .dueSoon
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("face-\(UUID().uuidString).png")
+        guard let tiff = ClockIcon.badge(kind.mood).tiffRepresentation,
+              let png = NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]),
+              (try? png.write(to: url)) != nil,
+              let attachment = try? UNNotificationAttachment(identifier: "face", url: url) else { return content }
+        let copy = content.mutableCopy() as! UNMutableNotificationContent
+        copy.attachments = [attachment]
+        return copy
     }
 
     private func durationText(_ minutes: Int) -> String {
@@ -296,8 +309,7 @@ private struct NotificationPopupView: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            Text(kind.symbol)
-                .font(.system(size: 54))
+            Image(nsImage: ClockIcon.badge(kind.mood, size: 72))
                 .rotationEffect(.degrees(kind == .dueSoon ? (animate ? 7 : -7) : 0))
                 .offset(y: kind == .overdue ? (animate ? 5 : -3) : 0)
             Text(kind.headline)

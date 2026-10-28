@@ -24,3 +24,4 @@ for size in [16, 32, 128, 256, 512] {
 assert(ClockIcon.menuImage(completed: true).isTemplate)
 assert(ClockIcon.menuImage(completed: false).size == NSSize(width: 18, height: 18))
 assert(ClockIcon.menuImage(completed: true).tiffRepresentation != ClockIcon.menuImage(completed: false).tiffRepresentation)
+assert(Set(ClockIcon.Mood.allCases.map { ClockIcon.badge($0, size: 64).tiffRepresentation! }).count == ClockIcon.Mood.allCases.count)
