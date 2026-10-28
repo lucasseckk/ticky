@@ -4,7 +4,7 @@
 
 # To-Do List
 
-**Uni-Aufgaben und GitHub-Arbeit an einem Ort – als Insel in deiner Menüleiste.**
+**Uni-Aufgaben und GitHub-Arbeit an einem Ort – direkt in deiner Menüleiste.**
 
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?style=flat-square&logo=apple&logoColor=white)](#installation)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](Package.swift)
@@ -14,7 +14,7 @@
 [![Claude Code](https://img.shields.io/badge/Agents-Claude%20Code-D97757?style=flat-square&logo=anthropic&logoColor=white)](#agent-aufgaben)
 [![Daten lokal](https://img.shields.io/badge/Daten-lokal-8E8E93?style=flat-square&logo=icloud&logoColor=white)](#daten-und-datenschutz)
 
-<img src="docs/images/trailer.gif" width="860" alt="Trailer: To-Dos, Editor, Dev-Bereich, Agent-Aufgaben und Notch-Insel">
+<img src="docs/images/trailer.gif" width="860" alt="Trailer: To-Dos, Editor, Dev-Bereich und Agent-Aufgaben">
 
 [Features](#features) · [Installation](#installation) · [Dev-Bereich](#dev-bereich) · [Agent-Aufgaben](#agent-aufgaben) · [Tastatur](#tastatur) · [Datenschutz](#daten-und-datenschutz)
 
@@ -46,9 +46,9 @@ Prioritäten (auch eigene, Stufe 1–5), Fälligkeiten, Gruppen mit Farbe und No
 Reviews, rote CI, eigene PRs, dringende Issues und Agent-Aufgaben – live über die GitHub CLI. Mergen mit Zwei-Klick-Bestätigung, ohne dass die App je ein Token sieht.
 </td>
 <td width="50%" valign="top">
-<img src="docs/images/island.png" alt="Notch-Insel eingeklappt und aufgeklappt">
-<h3>Insel an der Notch</h3>
-Optional hängt eine Pille an der Notch: „6 offen · 1 PR wartet“. Beim Darüberfahren klappt sie auf und zeigt das nächste fällige To-do, ein Klick öffnet das Panel.
+<img src="docs/images/settings.png" alt="Einstellungen mit Autostart, Tastenkürzel und Sortierung">
+<h3>Einstellbar, nicht überladen</h3>
+Autostart beim Anmelden, globales Tastenkürzel, Sortierung, Gruppen, eigene Prioritäten und Farben, Erinnerungen je Priorität sowie Export und Import.
 </td>
 </tr>
 </table>
@@ -155,7 +155,6 @@ Alles bleibt auf deinem Mac:
 | `Sources/KleineListe/Store.swift` | Datenmodell, Filter, Wiederholungen, Speicherung, Rückgängig, Export/Import |
 | `Sources/KleineListe/Dev.swift` | Dev-Bereich: PRs, Issues, Agent-Aufgaben, Claude-Start, Dev-To-dos |
 | `Sources/KleineListe/GitHub.swift` | GitHub CLI, PR- und Issue-Parsing, CI-Status, Claude-Startskript |
-| `Sources/KleineListe/NotchIsland.swift` | Insel an der Notch |
 | `Sources/KleineListe/Island.swift` | Gemeinsamer Island-Look (Pillen, Karten, Schalter, Animation) |
 | `Sources/KleineListe/Notifications.swift` | Mitteilungen, Erinnerungen, Snooze |
 | `Sources/KleineListe/GlobalShortcut.swift` | Systemweites <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd> |
