@@ -4,7 +4,7 @@
 
 # Ticky
 
-**Uni-Aufgaben und GitHub-Arbeit an einem Ort – direkt in deiner Menüleiste.**
+**Tägliche Aufgaben und GitHub-Arbeit an einem Ort – direkt in deiner Menüleiste.**
 
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?style=flat-square&logo=apple&logoColor=white)](#installation)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](Package.swift)
@@ -23,7 +23,7 @@
 
 ---
 
-**Ticky** ist eine To-do-Liste, wie man sie kennt – Aufgaben, Fälligkeiten, Erinnerungen, Gruppen. Sie soll aber der **eine Ort** sein, an dem neben Übungsblättern und Abgaben auch die **Entwicklungsarbeit** sichtbar ist: offene Pull Requests, rote CI, dringende Issues und Aufgaben, die Coding-Agents wie Claude Code selbst abarbeiten. Die Oberfläche ist an Apples **Dynamic Island** angelehnt: tiefschwarzes Panel, Pillen und Kapseln, leuchtende Akzente, federnde Animationen.
+**Ticky** ist eine To-do-Liste, wie man sie kennt – Aufgaben, Fälligkeiten, Erinnerungen, Gruppen. Sie soll aber der **eine Ort** sein, an dem neben Alltag, Terminen und täglichen Routinen auch die **Entwicklungsarbeit** sichtbar ist: offene Pull Requests, rote CI, dringende Issues und Aufgaben, die Coding-Agents wie Claude Code selbst abarbeiten. Die Oberfläche ist an Apples **Dynamic Island** angelehnt: tiefschwarzes Panel, Pillen und Kapseln, leuchtende Akzente, federnde Animationen.
 
 ## Features
 
