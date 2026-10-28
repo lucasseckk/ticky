@@ -10,7 +10,7 @@ mkdir -p "$HOME/Applications"
 rm -rf "$app" dist "$HOME/Applications/To-Do List.app"  # earlier builds and the pre-Ticky install; one copy keeps Spotlight unambiguous
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp Resources/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
-cp .build/release/ToDoList "$app/Contents/MacOS/Ticky"
+cp .build/release/Ticky "$app/Contents/MacOS/Ticky"
 cp Info.plist "$app/Contents/Info.plist"
 # Finder/FileProvider metadata can invalidate an ad-hoc app bundle signature.
 xattr -cr "$app" 2>/dev/null || true

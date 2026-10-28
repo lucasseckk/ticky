@@ -8,15 +8,16 @@
 
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-000000?style=flat-square&logo=apple&logoColor=white)](#installation)
 [![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](Package.swift)
-[![SwiftUI](https://img.shields.io/badge/SwiftUI-native-0A84FF?style=flat-square&logo=swift&logoColor=white)](Sources/KleineListe)
+[![SwiftUI](https://img.shields.io/badge/SwiftUI-native-0A84FF?style=flat-square&logo=swift&logoColor=white)](Sources/Ticky)
 [![Keine Abhängigkeiten](https://img.shields.io/badge/Abh%C3%A4ngigkeiten-keine-34C759?style=flat-square)](Package.swift)
 [![GitHub CLI](https://img.shields.io/badge/GitHub-gh%20CLI-181717?style=flat-square&logo=github&logoColor=white)](#dev-bereich)
 [![Claude Code](https://img.shields.io/badge/Agents-Claude%20Code-D97757?style=flat-square&logo=anthropic&logoColor=white)](#agent-aufgaben)
 [![Daten lokal](https://img.shields.io/badge/Daten-lokal-8E8E93?style=flat-square&logo=icloud&logoColor=white)](#daten-und-datenschutz)
+[![Lizenz: MIT](https://img.shields.io/badge/Lizenz-MIT-yellow?style=flat-square)](LICENSE)
 
 <img src="docs/images/trailer.gif" width="860" alt="Trailer: To-Dos, Editor, Dev-Bereich und Agent-Aufgaben">
 
-[Features](#features) · [Installation](#installation) · [Dev-Bereich](#dev-bereich) · [Agent-Aufgaben](#agent-aufgaben) · [Tastatur](#tastatur) · [Datenschutz](#daten-und-datenschutz)
+[Features](#features) · [Installation](#installation) · [Dev-Bereich](#dev-bereich) · [Agent-Aufgaben](#agent-aufgaben) · [Tastatur](#tastatur) · [Datenschutz](#daten-und-datenschutz) · [Hilfe](#häufige-probleme)
 
 </div>
 
@@ -62,7 +63,7 @@ Autostart beim Anmelden, globales Tastenkürzel, Sortierung, Gruppen, eigene Pri
 - **Sortierung:** automatisch (offen vor erledigt, dann Priorität, Fälligkeit, Erstellung) oder manuell.
 - **Suche & Ansichten:** Filter-Voreinstellungen (Überfällig, Heute, Priorität, Gruppe …), Fälligkeitsansicht (Überfällig, Heute, Morgen, Diese Woche, Später), Archiv für Erledigtes.
 - **Wiederholungen:** täglich, wöchentlich, monatlich oder an eigenen Wochentagen – Abhaken schiebt auf den nächsten Termin.
-- **Erinnerungen:** lokale macOS-Mitteilungen mit Aktionen „Erledigt“ und „Später“ (10 Min., 1 Std., morgen 9:00). Vorlaufzeit je Priorität einstellbar. Jede Mitteilung zeigt die Uhr mit passendem Gesicht: fröhlich bei normalen Erinnerungen, gestresst mit Schweißtropfen, wenn etwas bald fällig ist, X-Augen bei Überfälligem.
+- **Erinnerungen:** lokale macOS-Mitteilungen mit Aktionen „Erledigen“ und „Später“ (10 Min., 1 Std., morgen 9:00). Vorlaufzeit je Priorität einstellbar. Jede Mitteilung zeigt die Uhr mit passendem Gesicht: fröhlich bei normalen Erinnerungen, gestresst mit Schweißtropfen, wenn etwas bald fällig ist, X-Augen bei Überfälligem.
 - **Menüleisten-Uhr:** neutral, solange etwas offen ist – lächelt, sobald alles erledigt ist.
 - **Rückgängig (⌘Z)** für Löschen, Erledigen, Verschieben, Archivieren und Gruppenänderungen.
 - **Start:** optional beim Anmelden (macOS-Anmeldeobjekte, kein Hilfsprogramm); das Panel öffnet sich dort, wo du es verlassen hast.
@@ -71,16 +72,28 @@ Autostart beim Anmelden, globales Tastenkürzel, Sortierung, Gruppen, eigene Pri
 
 ## Installation
 
-Voraussetzungen: **macOS 14** oder neuer, Xcode oder Swift 6 mit macOS-SDK.
+Voraussetzungen: **macOS 14** oder neuer und die **Command Line Tools** von Apple (fehlen sie, fragt der Installer nach – oder vorab `xcode-select --install`).
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lucasseckk/ticky/main/install.sh | zsh
+```
+
+Der Installer lädt den Code, baut Ticky auf deinem Mac (beim ersten Mal 1–2 Minuten), legt die App nach `~/Applications/Ticky.app` und startet sie. Weil sie lokal gebaut wird, blockiert macOS sie nicht als unbekannten Download. Für ein Update denselben Befehl erneut ausführen – deine Daten bleiben erhalten.
+
+Ticky erscheint als Uhr in der Menüleiste und im Dock. Danach startest du sie wie jede App: <kbd>⌘</kbd><kbd>Leertaste</kbd> → „Ticky“. Beenden per Rechtsklick aufs Dock-Icon oder unter Einstellungen → Allgemein → Start; dort lässt sich das Dock-Icon auch ausblenden.
+
+<details>
+<summary><b>Selbst bauen</b></summary>
 
 ```bash
 git clone https://github.com/lucasseckk/ticky.git
 cd ticky
-zsh check.command          # Regressionstests
 zsh build.command --open   # bauen, installieren und starten
 ```
 
-Die App wird nach `~/Applications/Ticky.app` installiert und erscheint als Uhr in der Menüleiste und im Dock. Danach startest du sie wie jede App: <kbd>⌘</kbd><kbd>Leertaste</kbd> → „Ticky“. Beenden per Rechtsklick aufs Dock-Icon oder unter Einstellungen → Allgemein → Start; dort lässt sich das Dock-Icon auch ausblenden. Die App ist lokal ad-hoc signiert und nicht für die öffentliche Verteilung notarisiert. Vor einem Neubau eine laufende Instanz mit `pkill -x Ticky` beenden.
+Mehr für Entwickler – Tests, Arbeitsweise, Agents – steht in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+</details>
 
 ## Dev-Bereich
 
@@ -152,20 +165,42 @@ Alles bleibt auf deinem Mac:
 
 | Pfad | Inhalt |
 | --- | --- |
-| `Sources/KleineListe/App.swift` | Panel, To-Do-Liste, Einstellungen, Editor |
-| `Sources/KleineListe/Store.swift` | Datenmodell, Filter, Wiederholungen, Speicherung, Rückgängig, Export/Import |
-| `Sources/KleineListe/Dev.swift` | Dev-Bereich: PRs, Issues, Agent-Aufgaben, Claude-Start, Dev-To-dos |
-| `Sources/KleineListe/GitHub.swift` | GitHub CLI, PR- und Issue-Parsing, CI-Status, Claude-Startskript |
-| `Sources/KleineListe/Island.swift` | Gemeinsamer Island-Look (Pillen, Karten, Schalter, Animation) |
-| `Sources/KleineListe/Notifications.swift` | Mitteilungen, Erinnerungen, Snooze |
-| `Sources/KleineListe/GlobalShortcut.swift` | Systemweites <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd>, Dock-Icon |
-| `Sources/KleineListe/ClockIcon.swift` | Uhr mit Gesichtern für Menüleiste, App-Icon und Mitteilungen (`Resources/AppIcon.icns`, `Scripts/`) |
+| `Sources/Ticky/App.swift` | Panel, To-Do-Liste, Einstellungen, Editor |
+| `Sources/Ticky/Store.swift` | Datenmodell, Filter, Wiederholungen, Speicherung, Rückgängig, Export/Import |
+| `Sources/Ticky/Dev.swift` | Dev-Bereich: PRs, Issues, Agent-Aufgaben, Claude-Start, Dev-To-dos |
+| `Sources/Ticky/GitHub.swift` | GitHub CLI, PR- und Issue-Parsing, CI-Status, Claude-Startskript |
+| `Sources/Ticky/Island.swift` | Gemeinsamer Island-Look (Pillen, Karten, Schalter, Animation) |
+| `Sources/Ticky/Notifications.swift` | Mitteilungen, Erinnerungen, Snooze |
+| `Sources/Ticky/GlobalShortcut.swift` | Systemweites <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd>, Dock-Icon |
+| `Sources/Ticky/ClockIcon.swift` | Uhr mit Gesichtern für Menüleiste, App-Icon und Mitteilungen (`Resources/AppIcon.icns`, `Scripts/`) |
 | `Checks/StoreCheck.swift` | Regressionstests ohne Netzwerk |
-| `build.command` / `check.command` | Build und Tests |
+| `build.command` / `check.command` / `install.sh` | Build, Tests und Installer |
 | `AGENTS.md` | Regeln für Coding-Agents in diesem Repository |
 
-## Arbeitsweise
+## Häufige Probleme
 
-- Jede Änderung hat ein GitHub-Issue im Format `[P<Priorität>-<laufende Nr>] Titel`.
-- Gearbeitet wird auf eigenen Branches (`feature/<issue>-…`, `fix/<issue>-…`, `docs/<issue>-…`); Commits verweisen mit `Refs #N` / `Closes #N` auf das Issue, gemergt wird über Pull Requests.
-- Vor jedem Abschluss: `zsh check.command`, dann App neu bauen und starten (siehe [`AGENTS.md`](AGENTS.md)).
+| Problem | Lösung |
+| --- | --- |
+| Keine Erinnerungen | Systemeinstellungen → Mitteilungen → Ticky → Mitteilungen erlauben. Unter Einstellungen → Mitteilungen in Ticky testen. |
+| Dev-Bereich zeigt Befehle statt PRs | `gh` fehlt oder ist nicht angemeldet: `brew install gh` und `gh auth login`, dann ↻. |
+| Ein Repo fehlt im Dev-Bereich | Auf „N Repos ▾“ klicken und das Repo anhaken. |
+| Terminal-Knopf startet Claude nicht | Claude Code installieren (`npm install -g @anthropic-ai/claude-code`); den Repo-Ordner über ⋯ → „Ordner ändern“ prüfen. |
+| Autostart greift nicht mehr | Einstellungen → Allgemein → Start: einmal aus- und wieder einschalten. |
+| ⌃⌥T reagiert nicht | Ein anderes Programm belegt das Kürzel; unter Einstellungen → Allgemein → Start abschalten und das Menüleisten-Icon nutzen. |
+
+## Deinstallieren
+
+```bash
+pkill -x Ticky
+rm -rf ~/Applications/Ticky.app                        # App
+rm -rf ~/Library/Application\ Support/Ticky            # To-dos, Gruppen, Backups
+defaults delete de.lucasseck.todolist                  # Einstellungen
+```
+
+Vorher Autostart unter Einstellungen → Allgemein → Start ausschalten. Wer seine To-dos behalten will, exportiert sie vorher (Einstellungen → Allgemein → Daten sichern).
+
+## Mitwirken & Lizenz
+
+Beiträge sind willkommen – Ablauf und Regeln in [`CONTRIBUTING.md`](CONTRIBUTING.md), Regeln für Coding-Agents in [`AGENTS.md`](AGENTS.md).
+
+Ticky steht unter der [MIT-Lizenz](LICENSE).
