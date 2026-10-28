@@ -6,6 +6,7 @@ final class NotificationAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationManager.shared.configure()
         GlobalShortcut.setEnabled(UserDefaults.standard.object(forKey: "globalShortcut") as? Bool ?? true)
+        NotchIsland.setEnabled(UserDefaults.standard.bool(forKey: "notchIsland"))
     }
 }
 

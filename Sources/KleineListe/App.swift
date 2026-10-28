@@ -5,12 +5,16 @@ import ServiceManagement
 @main struct ToDoListApp: App {
     @NSApplicationDelegateAdaptor(NotificationAppDelegate.self) private var appDelegate
     @StateObject private var store: Store
-    @StateObject private var dev = DevStore()
+    @StateObject private var dev: DevStore
     init() {
         migratePreviousSettings()
         let store = Store()
+        let dev = DevStore()
         _store = StateObject(wrappedValue: store)
+        _dev = StateObject(wrappedValue: dev)
         NotificationManager.shared.store = store
+        NotchIsland.store = store
+        NotchIsland.dev = dev
     }
     var body: some Scene {
         MenuBarExtra {
@@ -246,10 +250,7 @@ struct Panel: View {
             rescheduleNotifications()
         }
     }
-    private var overdueCount: Int {
-        let now = Date()
-        return store.todos.filter { !$0.done && !$0.archived && !$0.isDev && ($0.due.map { $0 < now } ?? false) }.count
-    }
+    private var overdueCount: Int { store.overdueCount }
     private var statusPill: some View {
         HStack(spacing: 6) {
             Circle().fill(Color.white.opacity(store.count == 0 ? 0.35 : 0.9)).frame(width: 6, height: 6)
@@ -771,6 +772,7 @@ struct SettingsView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var launchHint: String?
     @AppStorage("globalShortcut") private var globalShortcut = true
+    @AppStorage("notchIsland") private var notchIsland = false
     @AppStorage("manualSort") private var manualSort = false
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
@@ -805,6 +807,8 @@ struct SettingsView: View {
                                 Toggle("Beim Anmelden automatisch starten", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
                                 Toggle("Panel überall mit \(GlobalShortcut.label) öffnen", isOn: $globalShortcut)
                                     .onChange(of: globalShortcut) { _, enabled in GlobalShortcut.setEnabled(enabled) }
+                                Toggle("Insel an der Notch zeigen", isOn: $notchIsland)
+                                    .onChange(of: notchIsland) { _, enabled in NotchIsland.setEnabled(enabled) }
                                 Text("Im Panel: ⌘N neues To-do · ↑↓ zwischen Karten · Return umbenennen · Leertaste abhaken · Esc abbrechen")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
