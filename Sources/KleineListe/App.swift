@@ -929,7 +929,9 @@ struct SettingsView: View {
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
+            // Only the file itself: the chosen folder belongs to the user.
             try store.exportData().write(to: url, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
             dataResult = ("Exportiert: \(url.lastPathComponent)", true)
         } catch {
             dataResult = ("Export fehlgeschlagen: \(error.localizedDescription)", false)

@@ -93,6 +93,13 @@ Alle Daten liegen lokal unter:
 - Darstellung, Repo-Auswahl und der letzte GitHub-Stand liegen in den macOS-Benutzereinstellungen.
 - Keine Tokens oder Zugangsdaten im Projekt oder in der App. Lokale Daten, Build-Ausgaben und Editor-Einstellungen werden von Git ignoriert.
 
+### Sicherheitsgrenzen
+
+- **Dateirechte:** Der Datenordner ist nur für deinen Benutzer zugänglich (`0700`), alle Dateien inklusive Backups und Exporte sind nur für dich lesbar (`0600`). Andere Benutzer auf demselben Mac sehen nichts.
+- **Verschlüsselung:** Die App verschlüsselt nicht selbst, sondern verlässt sich auf **FileVault** (Einstellungen → Datenschutz & Sicherheit). Eine eigene Verschlüsselung mit Schlüssel im Schlüsselbund wurde geprüft und verworfen: Die App ist nur ad-hoc signiert, dadurch ändert sich ihre Signatur bei jedem Build und der Schlüsselbund würde den Zugriff immer wieder neu abfragen oder verweigern – das Risiko, die eigenen Daten auszusperren, wäre größer als der Gewinn. Gegen Programme, die unter deinem Benutzer laufen, hilft beides nicht.
+- **Exporte** sind Klartext-JSON mit allen To-dos und Notizen – wie ein Passwort-freies Dokument behandeln (nicht in geteilte Ordner oder öffentliche Repos legen).
+- **GitHub:** Die App speichert keine Tokens. Zugriff läuft über die `gh`-Anmeldung, die im macOS-Schlüsselbund liegt. In den Benutzereinstellungen landen nur Login-Name, Repo-Liste und Auswahl.
+
 ## Projektstruktur
 
 | Pfad | Inhalt |
