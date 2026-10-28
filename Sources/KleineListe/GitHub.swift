@@ -202,6 +202,48 @@ struct AgentIssue: Identifiable, Equatable, Sendable {
     }
 }
 
+/// An open issue that needs attention soon (#26).
+struct UrgentIssue: Identifiable, Equatable, Sendable {
+    static let jsonFields = "number,title,url,labels,assignees,updatedAt"
+
+    let repo: String
+    let number: Int
+    let title: String
+    let url: URL
+    let labels: [String]
+    let assignees: [String]
+    let updated: Date
+
+    var id: String { "\(repo)#\(number)" }
+    var isAgent: Bool { labels.contains(AgentIssue.label) }
+    /// Priority and running number from a title like „[P1-03] …“; untagged issues sort last.
+    var rank: (priority: Int, number: Int) {
+        let parts = title.hasPrefix("[P") ? title.dropFirst(2).prefix { $0 != "]" }.split(separator: "-") : []
+        guard parts.count == 2, let priority = Int(parts[0]), let running = Int(parts[1]) else { return (9, number) }
+        return (priority, running)
+    }
+
+    /// Urgent means: title starts with „[P1“, labelled `dringend` or `P1`, or assigned to me.
+    func isUrgent(for login: String?) -> Bool {
+        title.hasPrefix("[P1") || labels.contains { ["dringend", "p1"].contains($0.lowercased()) }
+            || (login.map(assignees.contains) ?? false)
+    }
+
+    static func parse(_ data: Data, repo: String) throws -> [UrgentIssue] {
+        struct Raw: Decodable {
+            struct Name: Decodable { let name: String }
+            struct Login: Decodable { let login: String }
+            let number: Int, title: String, url: URL, labels: [Name]?, assignees: [Login]?, updatedAt: Date
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([Raw].self, from: data).map {
+            UrgentIssue(repo: repo, number: $0.number, title: $0.title, url: $0.url, labels: ($0.labels ?? []).map(\.name),
+                        assignees: ($0.assignees ?? []).map(\.login), updated: $0.updatedAt)
+        }
+    }
+}
+
 @MainActor final class DevStore: ObservableObject {
     enum Connection: Equatable {
         case unknown, connected(login: String), failed(GitHubError)
@@ -217,6 +259,7 @@ struct AgentIssue: Identifiable, Equatable, Sendable {
     /// Repositories whose pull requests could not be loaded in the last refresh.
     @Published private(set) var failedRepos: [String] = []
     @Published private(set) var agentIssues: [AgentIssue] = []
+    @Published private(set) var openIssues: [UrgentIssue] = []
     @Published var showsExamples: Bool { didSet { defaults.set(showsExamples, forKey: "devExamples") } }
     @Published private(set) var mergedExamples: Set<String> = []
 
@@ -287,6 +330,7 @@ struct AgentIssue: Identifiable, Equatable, Sendable {
             connection = .connected(login: login)
             await loadPullRequests(cli)
             await loadAgentIssues(cli)
+            await loadOpenIssues(cli)
             defaults.set(["login": login, "repos": repos, "updated": lastUpdated!], forKey: "devCache")
         } catch let error as GitHubError {
             connection = .failed(error)
@@ -323,6 +367,35 @@ struct AgentIssue: Identifiable, Equatable, Sendable {
         guard let cli = locate() else { throw GitHubError.missingCLI }
         _ = try await cli.run(["issue", "edit", String(issue.number), "-R", issue.repo, "--remove-label", AgentIssue.label])
         agentIssues.removeAll { $0.id == issue.id }
+    }
+
+    var urgentIssues: [UrgentIssue] {
+        openIssues.filter { selectedRepos.contains($0.repo) && $0.isUrgent(for: login) }
+            .sorted { $0.rank != $1.rank ? $0.rank < $1.rank : $0.repo < $1.repo }
+    }
+
+    /// Hands an existing issue to coding agents by adding the `agent` label (#27).
+    func markAsAgent(_ issue: UrgentIssue) async throws {
+        guard let cli = locate() else { throw GitHubError.missingCLI }
+        _ = try await cli.run(["label", "create", AgentIssue.label, "-R", issue.repo, "--color", "0E8A16", "--description", "Kann von einem Coding-Agent selbstständig abgearbeitet werden", "--force"])
+        _ = try await cli.run(["issue", "edit", String(issue.number), "-R", issue.repo, "--add-label", AgentIssue.label])
+        await loadAgentIssues(cli)
+        await loadOpenIssues(cli)
+    }
+
+    private func loadOpenIssues(_ cli: GitHubCLI) async {
+        let repos = selectedRepos
+        openIssues = await withTaskGroup(of: [UrgentIssue].self) { group in
+            for repo in repos {
+                group.addTask {
+                    let data = try? await cli.run(["issue", "list", "-R", repo, "--state", "open", "--limit", "100", "--json", UrgentIssue.jsonFields])
+                    return data.flatMap { try? UrgentIssue.parse($0, repo: repo) } ?? []
+                }
+            }
+            var collected: [UrgentIssue] = []
+            for await result in group { collected += result }
+            return collected
+        }
     }
 
     private func loadAgentIssues(_ cli: GitHubCLI) async {
