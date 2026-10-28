@@ -323,7 +323,7 @@ struct UndoStep: Identifiable {
     }
     var count: Int { todos.filter { !$0.done && !$0.isDev }.count }
     var overdueCount: Int { openTodos.filter { $0.due.map { $0 < Date() } ?? false }.count }
-    /// Open, non-archived, non-dev to-dos; counted in the panel header and the notch island (#50).
+    /// Open, non-archived, non-dev to-dos; counted in the panel header.
     var openTodos: [Todo] { todos.filter { !$0.done && !$0.archived && !$0.isDev } }
     func save(_ item: Todo) {
         guard writable else { return }
