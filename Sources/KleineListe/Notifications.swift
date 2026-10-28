@@ -206,7 +206,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
             let time = calendar.dateComponents([.hour, .minute], from: date)
             return days.map { day in
                 var components = time
-                components.weekday = day.rawValue
+                components.weekday = day.calendarWeekday
                 return ("weekday-\(day.rawValue)", UNCalendarNotificationTrigger(dateMatching: components, repeats: true))
             }
         }
