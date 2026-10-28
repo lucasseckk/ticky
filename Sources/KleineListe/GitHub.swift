@@ -408,3 +408,24 @@ struct UrgentIssue: Identifiable, Equatable, Sendable {
         pullRequests = results.flatMap { $0.1 ?? [] }.sorted { $0.created > $1.created }
     }
 }
+
+/// Terminal script that starts Claude Code with an agent prompt (#79). The prompt is read from a private file,
+/// so issue text never becomes part of the shell command.
+enum ClaudeScript {
+    static func make(folder: String, promptFile: String) -> String {
+        """
+        #!/bin/zsh -l
+        cd \(quoted(folder)) || exit 1
+        prompt=$(cat \(quoted(promptFile))); rm -f \(quoted(promptFile)) "$0"
+        if ! command -v claude >/dev/null; then
+          echo "Claude Code fehlt – installieren mit: npm install -g @anthropic-ai/claude-code"; exit 1
+        fi
+        exec claude "$prompt"
+
+        """
+    }
+
+    static func quoted(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+}
