@@ -302,6 +302,7 @@ struct DevView: View {
                 HStack(spacing: 5) {
                     agentStatusPill(issue)
                     InfoPill(text: "\(issue.repo.split(separator: "/").last.map(String.init) ?? issue.repo) #\(issue.number)", systemImage: "number")
+                    if issue.author != dev.login { InfoPill(text: "@\(issue.author)", systemImage: "person", tint: .orange) }
                     InfoPill(text: issue.created.formatted(.relative(presentation: .named)), systemImage: "clock")
                 }
             }
@@ -637,7 +638,7 @@ struct DevView: View {
             .buttonStyle(.plain)
             .disabled(!pr.canMerge || mergingID != nil)
             .opacity(pr.canMerge ? 1 : 0.35)
-            .help(pr.canMerge ? "Mit Merge-Commit zusammenführen" : pr.isDraft ? "Draft-PRs können nicht gemergt werden" : "Erst wenn die CI grün ist")
+            .help(pr.canMerge ? "Prüft die CI erneut und mergt mit der Strategie des Repos" : pr.isDraft ? "Draft-PRs können nicht gemergt werden" : "Erst wenn die CI grün ist")
             Button { addTodo(for: pr) } label: {
                 Label(hasTodo(for: pr) ? "Als To-do ✓" : "Als To-do", systemImage: "plus")
                     .labelStyle(.titleOnly)

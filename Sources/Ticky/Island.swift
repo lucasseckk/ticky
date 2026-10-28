@@ -16,10 +16,28 @@ extension View {
 
     /// Calm dark card; an optional slim stripe on the left carries the priority color.
     func islandCard(stripe: Color? = nil, cornerRadius: CGFloat = 16) -> some View {
-        padding(.leading, stripe == nil ? 0 : 6)
+        modifier(IslandCard(stripe: stripe, cornerRadius: cornerRadius))
+    }
+
+    /// Plain dark panel for settings and editor sections.
+    func islandSurface(cornerRadius: CGFloat = 16) -> some View {
+        background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: cornerRadius))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(Color.white.opacity(0.1)))
+    }
+}
+
+private struct IslandCard: ViewModifier {
+    let stripe: Color?
+    let cornerRadius: CGFloat
+    /// Settings › Farben: soft priority glow, or only the stripe on the left (#105).
+    @AppStorage("priorityGlow") private var glow = true
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.leading, stripe == nil ? 0 : 6)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: cornerRadius))
             // Soft glow of the priority color, fading from left to right.
-            .background(LinearGradient(colors: [(stripe ?? .clear).opacity(0.22), .clear], startPoint: .leading, endPoint: .init(x: 0.6, y: 0.5)),
+            .background(LinearGradient(colors: [(glow ? stripe ?? .clear : .clear).opacity(0.22), .clear], startPoint: .leading, endPoint: .init(x: 0.6, y: 0.5)),
                         in: RoundedRectangle(cornerRadius: cornerRadius))
             .overlay(alignment: .leading) {
                 if let stripe {
@@ -27,12 +45,6 @@ extension View {
                 }
             }
             .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(Color.white.opacity(0.08)))
-    }
-
-    /// Plain dark panel for settings and editor sections.
-    func islandSurface(cornerRadius: CGFloat = 16) -> some View {
-        background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: cornerRadius))
-            .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(Color.white.opacity(0.1)))
     }
 }
 
