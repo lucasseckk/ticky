@@ -876,6 +876,10 @@ struct SettingsView: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                 }
                             }
+                            Text(appVersion)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity)
                         }
                         .padding(12)
                     }
@@ -979,6 +983,14 @@ struct SettingsView: View {
     @State private var newGroupName = ""
     @State private var newPriorityName = ""
     @State private var newPriorityThreatLevel = 3
+
+    /// Version from Info.plist; `swift run` has no bundle version, hence the fallback (#64).
+    private var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        guard let version = info?["CFBundleShortVersionString"] as? String else { return "To-Do List · Entwicklungsversion" }
+        let build = info?["CFBundleVersion"] as? String
+        return "To-Do List · Version \(version)" + (build.map { " (\($0))" } ?? "")
+    }
 
     /// Opt-in only: registers or removes the app as login item via the system, no helper app left behind.
     private func setLaunchAtLogin(_ enabled: Bool) {
