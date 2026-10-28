@@ -45,7 +45,6 @@ Danach den Dev-Bereich öffnen. Die App findet `gh` unter `/opt/homebrew/bin`, `
 - **Mergen:** nur bei grüner oder fehlender CI und nicht bei Drafts. Erster Klick → „Wirklich mergen?“, zweiter Klick → Merge-Commit (`gh pr merge --merge`). Danach verschwindet die Karte und ein Hinweis bestätigt den Merge.
 - **Aktualisierung:** beim Öffnen des Dev-Bereichs, alle 2 Minuten, solange das Panel offen ist, und per ↻.
 
-- **Beispiele:** Ein Review von dir selbst lässt sich auf GitHub nicht anfordern. Damit der Review-Abschnitt trotzdem sichtbar ist, zeigt die App drei lokale Beispiel-Reviews (CI grün, rot, laufend) mit dem Etikett „Beispiel“; Mergen wirkt bei ihnen nur lokal. Abschaltbar unter Einstellungen → Allgemein → GitHub. Echte Demo-PRs im Repo: #61 (grün), #62 (rot), #63 (Draft).
 
 ### Agent-Aufgaben
 
