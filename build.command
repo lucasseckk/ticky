@@ -15,7 +15,7 @@ cp Info.plist "$app/Contents/Info.plist"
 # Finder/FileProvider metadata can invalidate an ad-hoc app bundle signature.
 xattr -cr "$app" 2>/dev/null || true
 codesign --force --sign - "$app"
-echo "Fertig: $PWD/$app"
+echo "Fertig: $app"
 if [[ "${1:-}" == "--open" ]]; then
     open "$app"
 fi
