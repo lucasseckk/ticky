@@ -76,6 +76,8 @@ zsh build.command --open   # bauen und starten
 
 Die App entsteht unter `dist/todo list.app`. Sie ist lokal ad-hoc signiert und nicht für die öffentliche Verteilung notarisiert.
 
+**Automatisch starten:** Einstellungen → Allgemein → Start. Das ist ausgeschaltet, bis du es aktivierst, und nutzt die macOS-Anmeldeobjekte (kein Hilfsprogramm). Ausschalten entfernt den Eintrag wieder. Das Panel öffnet sich dort, wo du es verlassen hast (Bereich, Ansicht, Einstellungen-Tab).
+
 ## Daten und Datenschutz
 
 Alle Daten liegen lokal unter:

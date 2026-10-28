@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import ServiceManagement
 
 @main struct ToDoListApp: App {
     @NSApplicationDelegateAdaptor(NotificationAppDelegate.self) private var appDelegate
@@ -38,7 +39,8 @@ struct Panel: View {
     @State private var filter = TodoFilter()
     @State private var showSearch = false
     @FocusState private var searchFocused: Bool
-    @State private var showSettings = false
+    /// Remembered, so the panel reopens where it was left (#16).
+    @AppStorage("showSettings") private var showSettings = false
     @State private var draft: Todo?
     @State private var draftIsNew = false
     @State private var hoveredGroupID: UUID?
@@ -735,7 +737,9 @@ struct SettingsView: View {
     @ObservedObject var store: Store
     @ObservedObject var dev: DevStore
     let onClose: () -> Void
-    @State private var selectedTab = 0
+    @AppStorage("settingsTab") private var selectedTab = 0
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var launchHint: String?
     @AppStorage("manualSort") private var manualSort = false
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
@@ -766,6 +770,13 @@ struct SettingsView: View {
                 if selectedTab == 0 {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
+                            SettingsCard(title: "Start", systemImage: "power", subtitle: "Startet To-Do List automatisch, wenn du dich bei macOS anmeldest. Ausschalten entfernt den Eintrag wieder vollständig.") {
+                                Toggle("Beim Anmelden automatisch starten", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
+                                if let launchHint {
+                                    Text(launchHint).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                                    Button("Anmeldeobjekte in den Systemeinstellungen öffnen") { SMAppService.openSystemSettingsLoginItems() }
+                                }
+                            }
                             SettingsCard(title: "Sortierung", systemImage: "arrow.up.arrow.down", subtitle: manualSort
                                 ? "Ziehe To-Dos auf andere To-Dos und Gruppen am Griff ≡, um die Reihenfolge festzulegen."
                                 : "Offene zuerst, dann nach Priorität, Fälligkeit und Erstellung. Gruppen lassen sich immer am Griff ≡ verschieben.") {
@@ -933,6 +944,20 @@ struct SettingsView: View {
     @State private var newGroupName = ""
     @State private var newPriorityName = ""
     @State private var newPriorityThreatLevel = 3
+
+    /// Opt-in only: registers or removes the app as login item via the system, no helper app left behind.
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            launchHint = nil
+        } catch {
+            launchHint = "Nicht geändert: \(error.localizedDescription)"
+        }
+        launchAtLogin = SMAppService.mainApp.status == .enabled
+        if SMAppService.mainApp.status == .requiresApproval {
+            launchHint = "macOS wartet auf deine Zustimmung unter Systemeinstellungen → Allgemein → Anmeldeobjekte."
+        }
+    }
 
     private func exportBackup() {
         let panel = NSSavePanel()
