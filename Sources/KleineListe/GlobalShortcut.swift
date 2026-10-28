@@ -41,3 +41,10 @@ import Carbon.HIToolbox
         return view.subviews.lazy.compactMap(statusButton).first
     }
 }
+
+/// Optional Dock icon (#86): the app is a menu bar app (LSUIElement) and only shows up in the Dock when wanted.
+@MainActor enum DockIcon {
+    static func setVisible(_ visible: Bool) {
+        NSApp.setActivationPolicy(visible ? .regular : .accessory)
+    }
+}

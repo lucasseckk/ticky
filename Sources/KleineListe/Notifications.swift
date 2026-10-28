@@ -6,6 +6,13 @@ final class NotificationAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NotificationManager.shared.configure()
         GlobalShortcut.setEnabled(UserDefaults.standard.object(forKey: "globalShortcut") as? Bool ?? true)
+        DockIcon.setVisible(UserDefaults.standard.object(forKey: "showInDock") as? Bool ?? true)
+    }
+
+    /// Dock click or a second launch from Spotlight opens the panel.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        GlobalShortcut.openPanel()
+        return false
     }
 }
 

@@ -771,6 +771,7 @@ struct SettingsView: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var launchHint: String?
     @AppStorage("globalShortcut") private var globalShortcut = true
+    @AppStorage("showInDock") private var showInDock = true
     @AppStorage("manualSort") private var manualSort = false
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
@@ -801,10 +802,12 @@ struct SettingsView: View {
                 if selectedTab == 0 {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
-                            SettingsCard(title: "Start", systemImage: "power", subtitle: "Startet To-Do List automatisch, wenn du dich bei macOS anmeldest. Ausschalten entfernt den Eintrag wieder vollständig.") {
+                            SettingsCard(title: "Start", systemImage: "power", subtitle: "Starten über Spotlight („To-Do“) oder das Dock, beenden per Rechtsklick aufs Dock-Icon oder hier. Autostart beim Anmelden ist optional und lässt sich jederzeit wieder entfernen.") {
                                 Toggle("Beim Anmelden automatisch starten", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
                                 Toggle("Panel überall mit \(GlobalShortcut.label) öffnen", isOn: $globalShortcut)
                                     .onChange(of: globalShortcut) { _, enabled in GlobalShortcut.setEnabled(enabled) }
+                                Toggle("Im Dock anzeigen", isOn: $showInDock)
+                                    .onChange(of: showInDock) { _, visible in DockIcon.setVisible(visible) }
                                 Text("Im Panel: ⌘N neues To-do · ↑↓ zwischen Karten · Return umbenennen · Leertaste abhaken · Esc abbrechen")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -812,6 +815,7 @@ struct SettingsView: View {
                                     Text(launchHint).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                                     Button("Anmeldeobjekte in den Systemeinstellungen öffnen") { SMAppService.openSystemSettingsLoginItems() }
                                 }
+                                Button(role: .destructive) { NSApp.terminate(nil) } label: { Label("To-Do List beenden", systemImage: "power") }
                             }
                             SettingsCard(title: "Sortierung", systemImage: "arrow.up.arrow.down", subtitle: manualSort
                                 ? "Ziehe To-Dos auf andere To-Dos und Gruppen am Griff ≡, um die Reihenfolge festzulegen."

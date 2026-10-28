@@ -62,7 +62,8 @@ Autostart beim Anmelden, globales Tastenkürzel, Sortierung, Gruppen, eigene Pri
 - **Sortierung:** automatisch (offen vor erledigt, dann Priorität, Fälligkeit, Erstellung) oder manuell.
 - **Suche & Ansichten:** Filter-Voreinstellungen (Überfällig, Heute, Priorität, Gruppe …), Fälligkeitsansicht (Überfällig, Heute, Morgen, Diese Woche, Später), Archiv für Erledigtes.
 - **Wiederholungen:** täglich, wöchentlich, monatlich oder an eigenen Wochentagen – Abhaken schiebt auf den nächsten Termin.
-- **Erinnerungen:** lokale macOS-Mitteilungen mit Aktionen „Erledigt“ und „Später“ (10 Min., 1 Std., morgen 9:00). Vorlaufzeit je Priorität einstellbar.
+- **Erinnerungen:** lokale macOS-Mitteilungen mit Aktionen „Erledigt“ und „Später“ (10 Min., 1 Std., morgen 9:00). Vorlaufzeit je Priorität einstellbar. Jede Mitteilung zeigt die Uhr mit passendem Gesicht: fröhlich bei normalen Erinnerungen, gestresst mit Schweißtropfen, wenn etwas bald fällig ist, X-Augen bei Überfälligem.
+- **Menüleisten-Uhr:** neutral, solange etwas offen ist – lächelt, sobald alles erledigt ist.
 - **Rückgängig (⌘Z)** für Löschen, Erledigen, Verschieben, Archivieren und Gruppenänderungen.
 - **Start:** optional beim Anmelden (macOS-Anmeldeobjekte, kein Hilfsprogramm); das Panel öffnet sich dort, wo du es verlassen hast.
 
@@ -76,10 +77,10 @@ Voraussetzungen: **macOS 14** oder neuer, Xcode oder Swift 6 mit macOS-SDK.
 git clone https://github.com/lucasseckk/to-do-list.git
 cd to-do-list
 zsh check.command          # Regressionstests
-zsh build.command --open   # bauen und starten
+zsh build.command --open   # bauen, installieren und starten
 ```
 
-Die App entsteht unter `dist/todo list.app` und erscheint als Uhr in der Menüleiste. Sie ist lokal ad-hoc signiert und nicht für die öffentliche Verteilung notarisiert. Vor einem Neubau eine laufende Instanz mit `pkill -x ToDoList` beenden.
+Die App wird nach `~/Applications/To-Do List.app` installiert und erscheint als Uhr in der Menüleiste und im Dock. Danach startest du sie wie jede App: <kbd>⌘</kbd><kbd>Leertaste</kbd> → „To-Do“. Beenden per Rechtsklick aufs Dock-Icon oder unter Einstellungen → Allgemein → Start; dort lässt sich das Dock-Icon auch ausblenden. Die App ist lokal ad-hoc signiert und nicht für die öffentliche Verteilung notarisiert. Vor einem Neubau eine laufende Instanz mit `pkill -x ToDoList` beenden.
 
 ## Dev-Bereich
 
@@ -90,7 +91,7 @@ brew install gh
 gh auth login
 ```
 
-Fehlt `gh` oder ist es nicht angemeldet, zeigt der Dev-Bereich genau diese Befehle zum Kopieren an. Repositories wählst du unter **Einstellungen → Allgemein → GitHub** (oder über die Pille „N Repos ▸“).
+Fehlt `gh` oder ist es nicht angemeldet, zeigt der Dev-Bereich genau diese Befehle zum Kopieren an. Welche Repositories erscheinen, wählst du direkt im Dev-Bereich: Klick auf **„N Repos ▾“** öffnet die Auswahl. Bei mehreren Repos trennt ein kleiner Trenner mit Repo-Namen PRs, Reviews und Issues.
 
 | Bereich | Was du siehst und tun kannst |
 | --- | --- |
@@ -157,8 +158,8 @@ Alles bleibt auf deinem Mac:
 | `Sources/KleineListe/GitHub.swift` | GitHub CLI, PR- und Issue-Parsing, CI-Status, Claude-Startskript |
 | `Sources/KleineListe/Island.swift` | Gemeinsamer Island-Look (Pillen, Karten, Schalter, Animation) |
 | `Sources/KleineListe/Notifications.swift` | Mitteilungen, Erinnerungen, Snooze |
-| `Sources/KleineListe/GlobalShortcut.swift` | Systemweites <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd> |
-| `Sources/KleineListe/ClockIcon.swift` | Uhr-Icon für Menüleiste und App (`Resources/AppIcon.icns`, `Scripts/`) |
+| `Sources/KleineListe/GlobalShortcut.swift` | Systemweites <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd>, Dock-Icon |
+| `Sources/KleineListe/ClockIcon.swift` | Uhr mit Gesichtern für Menüleiste, App-Icon und Mitteilungen (`Resources/AppIcon.icns`, `Scripts/`) |
 | `Checks/StoreCheck.swift` | Regressionstests ohne Netzwerk |
 | `build.command` / `check.command` | Build und Tests |
 | `AGENTS.md` | Regeln für Coding-Agents in diesem Repository |
