@@ -5,7 +5,7 @@ Native macOS-Menüleisten-App für To-dos – gebaut für den Alltag zwischen **
 Die App ist eine ganz normale To-do-Liste, wie man sie kennt: Aufgaben, Fälligkeiten, Erinnerungen, Gruppen. Das eigentliche Ziel geht aber darüber hinaus: Sie soll der eine Ort sein, an dem ich neben Uni-Aufgaben auch meine **Entwicklungsarbeit** im Blick habe – offene Pull Requests, Reviews, dringende Issues und Aufgaben, die Coding-Agents sehen und abarbeiten können. Deshalb hat die App zwei Bereiche:
 
 - **To-Dos** – persönliche Aufgaben, z. B. Übungsblätter, Abgaben, Termine
-- **Dev** – GitHub-Arbeit: Pull Requests, Reviews und Dev-To-dos (später auch dringende Issues und Agent-Issues)
+- **Dev** – GitHub-Arbeit: Pull Requests, Reviews, Agent-Aufgaben und eigene Dev-To-dos (später auch dringende Issues)
 
 SwiftUI, keine externen Abhängigkeiten, ab macOS 14. Die Oberfläche ist an Apples Dynamic Island angelehnt: tiefschwarzes Panel, Pillen und Kapseln, leuchtende Farbakzente und kurze, federnde Animationen.
 
@@ -44,9 +44,22 @@ Danach den Dev-Bereich öffnen. Die App findet `gh` unter `/opt/homebrew/bin`, `
 - **Mergen:** nur bei grüner oder fehlender CI und nicht bei Drafts. Erster Klick → „Wirklich mergen?“, zweiter Klick → Merge-Commit (`gh pr merge --merge`). Danach verschwindet die Karte und ein Hinweis bestätigt den Merge.
 - **Aktualisierung:** beim Öffnen des Dev-Bereichs, alle 2 Minuten, solange das Panel offen ist, und per ↻.
 
-### Dev-To-dos
+- **Beispiele:** Ein Review von dir selbst lässt sich auf GitHub nicht anfordern. Damit der Review-Abschnitt trotzdem sichtbar ist, zeigt die App drei lokale Beispiel-Reviews (CI grün, rot, laufend) mit dem Etikett „Beispiel“; Mergen wirkt bei ihnen nur lokal. Abschaltbar unter Einstellungen → Allgemein → GitHub. Echte Demo-PRs im Repo: #61 (grün), #62 (rot), #63 (Draft).
 
-Eigene Liste nur im Dev-Bereich – für Entwicklungs- und Agent-Aufgaben, getrennt von den normalen To-Dos (sie erscheinen nicht in Liste, Zähler oder Archiv).
+### Agent-Aufgaben
+
+Aufgaben für Coding-Agents (Claude Code, Codex …) sind **GitHub-Issues mit dem Label `agent`**. So kann ein Agent sie selbst finden und lesen – die lokale App-Datei sieht er nicht, GitHub schon.
+
+- **Anlegen:** „Neue Aufgabe“ → Repository, Titel, Aufgabe, Akzeptanzkriterien. Die App legt daraus ein strukturiertes Issue mit Label `agent` an.
+- **Status** (aus GitHub abgeleitet): Offen → In Arbeit (Label `agent:in-arbeit`) → PR offen (ein PR enthält „Closes #Nr“, klickbar) → Erledigt (Issue geschlossen, bleibt eine Woche sichtbar).
+- **An einen Agent übergeben:**
+  - automatisch: Der Agent sucht selbst mit `gh issue list --label agent` – das Vorgehen steht in `AGENTS.md`;
+  - oder per **Prompt**-Button: kopiert einen fertigen Prompt (Issue, Beschreibung, Vorgehen), den du in Claude Code oder Codex einfügst.
+- Klick auf die Karte öffnet das Issue; im ⋯-Menü: PR öffnen, „in Arbeit“ setzen/zurücknehmen, Label entfernen.
+
+### Meine Dev-To-dos
+
+Eigene, lokale Liste nur im Dev-Bereich – für Notizen und Aufgaben, die nicht an einen Agent gehen. Sie erscheinen nicht in der normalen Liste, im Zähler oder im Archiv.
 
 - Über das Eingabefeld anlegen, abhaken, Titel direkt bearbeiten, Priorität ändern, löschen.
 - **„Als To-do“** auf einer PR-Karte legt „Review: <PR-Titel> (repo #Nr)“ an – Priorität Hoch, wenn das Review von mir angefordert ist, sonst Mittel. Der PR-Link hängt als klickbare Pille daran.
@@ -86,8 +99,8 @@ Alle Daten liegen lokal unter:
 | --- | --- |
 | `Sources/KleineListe/App.swift` | Panel, To-Do-Liste, Einstellungen, Editor |
 | `Sources/KleineListe/Store.swift` | Datenmodell, Filter, Speicherung, Rückgängig, Export/Import |
-| `Sources/KleineListe/Dev.swift` | Dev-Bereich: PRs, Merge, Dev-To-dos |
-| `Sources/KleineListe/GitHub.swift` | Aufruf der GitHub CLI, PR-Parsing, CI-Status |
+| `Sources/KleineListe/Dev.swift` | Dev-Bereich: PRs, Merge, Agent-Aufgaben, Dev-To-dos |
+| `Sources/KleineListe/GitHub.swift` | Aufruf der GitHub CLI, PR- und Issue-Parsing, CI-Status |
 | `Sources/KleineListe/Island.swift` | Gemeinsamer Island-Look (Pillen, Karten, Schalter, Animation) |
 | `Sources/KleineListe/Notifications.swift` | Mitteilungen und Erinnerungen |
 | `Sources/KleineListe/ClockIcon.swift` | Uhr-Icon für Menüleiste und App |
@@ -109,5 +122,4 @@ Die Menüleiste zeigt eine eigene Uhr mit Gesicht: lächelnd, wenn alles erledig
 ## Roadmap
 
 - Dringende Issues im Dev-Bereich (#26)
-- Agent-Issues: Aufgaben, die Coding-Agents sehen und abarbeiten können (#27)
 - Insel an der Notch als Alternative zum Menüleisten-Panel (#50)
