@@ -22,7 +22,7 @@ enum PanelSection: String, CaseIterable, Identifiable {
 struct DevView: View {
     @ObservedObject var dev: DevStore
     @ObservedObject var store: Store
-    let openSettings: () -> Void
+    @State private var showRepoPicker = false
     @State private var newDevTodo = ""
     @State private var showAgentForm = false
     @State private var agentRepo = ""
@@ -65,7 +65,7 @@ struct DevView: View {
                                 if PullRequest.Category.allCases.allSatisfy({ dev.pullRequests(in: $0).isEmpty }) {
                                     VStack(spacing: 10) {
                                         Image(systemName: "checkmark.seal").font(.system(size: 34))
-                                        Text(dev.selectedRepos.isEmpty ? "Wähle in den Einstellungen Repositories aus." : "Keine offenen Pull Requests.")
+                                        Text(dev.selectedRepos.isEmpty ? "Wähle oben über „Repos“ Repositories aus." : "Keine offenen Pull Requests.")
                                     }
                                     .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity)
@@ -132,11 +132,55 @@ struct DevView: View {
                 }
             }
             .padding(.horizontal, 4)
-            ForEach(shown) { issue in urgentCard(issue) }
+            byRepo("urgent", shown, repo: \.repo) { issue in urgentCard(issue) }
         }
     }
 
     private func repoName(_ repo: String) -> String { repo.split(separator: "/").last.map(String.init) ?? repo }
+
+    /// With several repos selected, items are grouped under a small divider per repo (#88).
+    /// `scope` keeps the group ids unique across sections; the lazy stack drops rows with duplicate ids.
+    @ViewBuilder private func byRepo<Item: Identifiable, Card: View>(_ scope: String, _ items: [Item], repo: KeyPath<Item, String>, @ViewBuilder card: @escaping (Item) -> Card) -> some View {
+        if dev.selectedRepos.count > 1 {
+            ForEach(Array(Set(items.map { $0[keyPath: repo] })).sorted().map { "\(scope)|\($0)" }, id: \.self) { key in
+                let name = String(key.dropFirst(scope.count + 1))
+                HStack(spacing: 8) {
+                    Text(repoName(name)).font(.caption2.weight(.semibold)).foregroundStyle(.secondary).fixedSize()
+                    Rectangle().fill(Color.white.opacity(0.12)).frame(height: 1)
+                }
+                .padding(.horizontal, 6)
+                .padding(.top, 2)
+                ForEach(items.filter { $0[keyPath: repo] == name }) { card($0) }
+            }
+        } else {
+            ForEach(items) { card($0) }
+        }
+    }
+
+    /// Dropdown behind the „N Repos“ pill (#89); replaces the list that used to live in the settings.
+    private var repoPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Im Dev-Bereich anzeigen").font(.headline)
+            if dev.availableRepos.isEmpty {
+                Text("Keine Repositories gefunden.").font(.caption).foregroundStyle(.secondary)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(dev.availableRepos, id: \.self) { repo in
+                        Toggle(repo, isOn: Binding(get: { dev.isSelected(repo) }, set: { selected in
+                            dev.setSelected(repo, selected)
+                            Task { await dev.refresh() }
+                        }))
+                        .toggleStyle(.checkbox)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(height: min(260, CGFloat(dev.availableRepos.count) * 24))
+        }
+        .padding(14)
+        .frame(width: 280)
+    }
 
     private func urgentCard(_ issue: UrgentIssue) -> some View {
         let linked = store.todos.contains { $0.isDev && $0.link == issue.url }
@@ -208,7 +252,7 @@ struct DevView: View {
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 4)
         }
-        ForEach(issues) { issue in agentCard(issue) }
+        byRepo("agent", issues, repo: \.repo) { issue in agentCard(issue) }
     }
 
     private var agentForm: some View {
@@ -490,14 +534,15 @@ struct DevView: View {
                     .foregroundStyle(.secondary)
                     .help("Zuletzt aktualisiert")
             }
-            Button(action: openSettings) {
-                Text("\(dev.selectedRepos.count) Repos ▸")
+            Button { showRepoPicker.toggle() } label: {
+                Text("\(dev.selectedRepos.count) Repos ▾")
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .islandCapsule()
             }
             .buttonStyle(.plain)
-            .help("Repositories in den Einstellungen auswählen")
+            .help("Repositories für den Dev-Bereich auswählen")
+            .popover(isPresented: $showRepoPicker, arrowEdge: .bottom) { repoPicker }
             Button { Task { await dev.refresh() } } label: {
                 Group {
                     if dev.isRefreshing { ProgressView().controlSize(.small) } else { Image(systemName: "arrow.clockwise") }
@@ -554,7 +599,7 @@ struct DevView: View {
             .padding(.top, 6)
             .padding(.horizontal, 4)
             .id(category)
-            ForEach(items) { pr in card(pr) }
+            byRepo("\(category)", items, repo: \.repo) { pr in card(pr) }
         }
     }
 
