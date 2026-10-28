@@ -3,9 +3,14 @@ import AppKit
 
 @main struct ToDoListApp: App {
     @NSApplicationDelegateAdaptor(NotificationAppDelegate.self) private var appDelegate
-    @StateObject private var store = Store()
+    @StateObject private var store: Store
     @StateObject private var dev = DevStore()
-    init() { migratePreviousSettings() }
+    init() {
+        migratePreviousSettings()
+        let store = Store()
+        _store = StateObject(wrappedValue: store)
+        NotificationManager.shared.store = store
+    }
     var body: some Scene {
         MenuBarExtra {
             Panel(store: store, dev: dev)
@@ -614,8 +619,10 @@ struct Panel: View {
     }
     @ViewBuilder private func infoPills(_ item: Todo) -> some View {
         let group = (dueView || showArchive) ? store.groups.first(where: { $0.id == item.groupID }) : nil
-        if item.due != nil || item.repeatRule != .none || group != nil {
+        let snoozed = item.snoozedUntil.flatMap { $0 > Date() && !item.done ? $0 : nil }
+        if item.due != nil || item.repeatRule != .none || group != nil || snoozed != nil {
             HStack(spacing: 5) {
+                if let snoozed { InfoPill(text: "später \(snoozed.formatted(date: .omitted, time: .shortened))", systemImage: "moon.zzz") }
                 if let due = item.due {
                     InfoPill(text: due.formatted(.dateTime.day().month().hour().minute()), systemImage: "calendar",
                              tint: !item.done && due < Date() ? .red : .white)

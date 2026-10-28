@@ -102,6 +102,22 @@ import Foundation
         devStore.toggle(devTodo)
         precondition(devStore.count == 0)
         devStore.delete(devTodo)
+        let reminders = Store(file: file)
+        let remind = Todo(title: "Anrufen")
+        reminders.save(remind)
+        let later = Date(timeIntervalSince1970: 2_100_000_000)
+        reminders.snooze(remind.id, until: later)
+        precondition(Store(file: file).todos.first { $0.id == remind.id }?.snoozedUntil == later)
+        reminders.finish(remind.id)
+        reminders.finish(remind.id)
+        precondition(Store(file: file).todos.first { $0.id == remind.id }?.done == true)
+        reminders.finish(UUID())
+        reminders.delete(remind)
+        var berlin = Calendar(identifier: .gregorian)
+        berlin.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        let evening = berlin.date(from: DateComponents(year: 2026, month: 10, day: 28, hour: 23, minute: 30))!
+        precondition(Snooze.tenMinutes.date(from: evening) == evening.addingTimeInterval(600))
+        precondition(Snooze.tomorrow.date(from: evening, calendar: berlin) == berlin.date(from: DateComponents(year: 2026, month: 10, day: 29, hour: 9))!)
         let source = Store(file: directory.appendingPathComponent("quelle/todos.json"))
         source.createGroup(name: "Uni")
         source.updateGroup({ var g = source.groups[0]; g.notes = "Raum 101"; return g }())
@@ -197,6 +213,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Snooze, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
     }
 }
