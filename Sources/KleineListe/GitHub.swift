@@ -96,9 +96,6 @@ struct PullRequest: Identifiable, Equatable, Sendable {
             pr("uni-app", 12, "Login-Seite überarbeiten", "anna", hoursAgo: 3, .success, review: true),
             pr("uni-app", 14, "Datenbank-Migration für Kurse", "max", hoursAgo: 26, .failure, review: true),
             pr("agent-tools", 7, "Agent liest Issues mit Label „agent“", "anna", hoursAgo: 1, .pending, review: true),
-            pr("uni-app", 15, "Übungsblatt-Parser", login, hoursAgo: 5, .success),
-            pr("agent-tools", 9, "Workflow für Agent-Issues", login, hoursAgo: 50, .none, draft: true),
-            pr("uni-app", 11, "Abhängigkeiten aktualisieren", "dependabot", hoursAgo: 72, .success),
         ]
     }
     /// Merging is only offered when nothing is failing or still running.
@@ -141,6 +138,70 @@ struct PullRequest: Identifiable, Equatable, Sendable {
     }
 }
 
+/// A GitHub issue labelled `agent`: work a coding agent can pick up on its own (#27).
+struct AgentIssue: Identifiable, Equatable, Sendable {
+    enum Status: Int, Sendable { case open, inProgress, prOpen, done }
+
+    static let label = "agent"
+    static let inProgressLabel = "agent:in-arbeit"
+    static let jsonFields = "number,title,body,url,createdAt,closedAt,state,labels,closedByPullRequestsReferences"
+
+    let repo: String
+    let number: Int
+    let title: String
+    let body: String
+    let url: URL
+    let created: Date
+    let closed: Date?
+    let status: Status
+    let pullRequest: URL?
+
+    var id: String { "\(repo)#\(number)" }
+
+    /// Ready-to-paste instruction for Claude Code, Codex or another agent.
+    var prompt: String {
+        """
+        Bearbeite das GitHub-Issue #\(number) im Repository \(repo): „\(title)“.
+
+        \(body.trimmingCharacters(in: .whitespacesAndNewlines))
+
+        Vorgehen:
+        - Lies zuerst AGENTS.md und hole alle Details mit `gh issue view \(number) -R \(repo) --comments`.
+        - Setze das Label `\(Self.inProgressLabel)`, solange du daran arbeitest: `gh issue edit \(number) -R \(repo) --add-label \(Self.inProgressLabel)`.
+        - Arbeite auf einem neuen Branch, prüfe dein Ergebnis und öffne einen Pull Request mit „Closes #\(number)“ in der Beschreibung.
+        """
+    }
+
+    static func parse(_ data: Data, repo: String) throws -> [AgentIssue] {
+        struct Raw: Decodable {
+            struct Label: Decodable { let name: String }
+            struct Reference: Decodable { let url: URL }
+            let number: Int, title: String, body: String?, url: URL, createdAt: Date, closedAt: Date?, state: String
+            let labels: [Label]?, closedByPullRequestsReferences: [Reference]?
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([Raw].self, from: data).map { raw in
+            let pullRequest = raw.closedByPullRequestsReferences?.last?.url
+            let status: Status = raw.state == "CLOSED" ? .done
+                : pullRequest != nil ? .prOpen
+                : (raw.labels ?? []).contains { $0.name == inProgressLabel } ? .inProgress : .open
+            return AgentIssue(repo: repo, number: raw.number, title: raw.title, body: raw.body ?? "", url: raw.url,
+                              created: raw.createdAt, closed: raw.closedAt, status: status, pullRequest: pullRequest)
+        }
+    }
+
+    /// Body for issues created from the app, structured so an agent can work with it directly.
+    static func body(task: String, criteria: String) -> String {
+        var text = "## Aufgabe\n\n\(task.trimmingCharacters(in: .whitespacesAndNewlines))\n"
+        let lines = criteria.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        if !lines.isEmpty {
+            text += "\n## Akzeptanzkriterien\n\n" + lines.map { "- [ ] " + ($0.hasPrefix("- ") ? String($0.dropFirst(2)) : $0) }.joined(separator: "\n") + "\n"
+        }
+        return text + "\n---\n_Angelegt über To-Do List für Coding-Agents (Label `\(label)`). Vorgehen siehe AGENTS.md._\n"
+    }
+}
+
 @MainActor final class DevStore: ObservableObject {
     enum Connection: Equatable {
         case unknown, connected(login: String), failed(GitHubError)
@@ -155,6 +216,7 @@ struct PullRequest: Identifiable, Equatable, Sendable {
     @Published private(set) var pullRequests: [PullRequest] = []
     /// Repositories whose pull requests could not be loaded in the last refresh.
     @Published private(set) var failedRepos: [String] = []
+    @Published private(set) var agentIssues: [AgentIssue] = []
     @Published var showsExamples: Bool { didSet { defaults.set(showsExamples, forKey: "devExamples") } }
     @Published private(set) var mergedExamples: Set<String> = []
 
@@ -224,12 +286,59 @@ struct PullRequest: Identifiable, Equatable, Sendable {
             lastUpdated = Date()
             connection = .connected(login: login)
             await loadPullRequests(cli)
+            await loadAgentIssues(cli)
             defaults.set(["login": login, "repos": repos, "updated": lastUpdated!], forKey: "devCache")
         } catch let error as GitHubError {
             connection = .failed(error)
         } catch {
             connection = .failed(.failed(error.localizedDescription))
         }
+    }
+
+    /// Open agent issues plus those finished within the last week.
+    var visibleAgentIssues: [AgentIssue] {
+        let weekAgo = Date().addingTimeInterval(-7 * 86400)
+        return agentIssues.filter { selectedRepos.contains($0.repo) && ($0.closed ?? .distantFuture) > weekAgo }
+            .sorted { $0.status.rawValue != $1.status.rawValue ? $0.status.rawValue < $1.status.rawValue : $0.created > $1.created }
+    }
+
+    func createAgentIssue(repo: String, title: String, body: String) async throws {
+        guard let cli = locate() else { throw GitHubError.missingCLI }
+        // --force creates the label or leaves an existing one usable.
+        _ = try await cli.run(["label", "create", AgentIssue.label, "-R", repo, "--color", "0E8A16", "--description", "Kann von einem Coding-Agent selbstständig abgearbeitet werden", "--force"])
+        _ = try await cli.run(["issue", "create", "-R", repo, "--title", title, "--body", body, "--label", AgentIssue.label])
+        await loadAgentIssues(cli)
+    }
+
+    func setInProgress(_ issue: AgentIssue, _ inProgress: Bool) async throws {
+        guard let cli = locate() else { throw GitHubError.missingCLI }
+        if inProgress {
+            _ = try await cli.run(["label", "create", AgentIssue.inProgressLabel, "-R", issue.repo, "--color", "FBCA04", "--description", "Ein Agent arbeitet gerade daran", "--force"])
+        }
+        _ = try await cli.run(["issue", "edit", String(issue.number), "-R", issue.repo, inProgress ? "--add-label" : "--remove-label", AgentIssue.inProgressLabel])
+        await loadAgentIssues(cli)
+    }
+
+    func removeAgentLabel(_ issue: AgentIssue) async throws {
+        guard let cli = locate() else { throw GitHubError.missingCLI }
+        _ = try await cli.run(["issue", "edit", String(issue.number), "-R", issue.repo, "--remove-label", AgentIssue.label])
+        agentIssues.removeAll { $0.id == issue.id }
+    }
+
+    private func loadAgentIssues(_ cli: GitHubCLI) async {
+        let repos = selectedRepos
+        let results = await withTaskGroup(of: [AgentIssue].self) { group in
+            for repo in repos {
+                group.addTask {
+                    let data = try? await cli.run(["issue", "list", "-R", repo, "--label", AgentIssue.label, "--state", "all", "--limit", "30", "--json", AgentIssue.jsonFields])
+                    return data.flatMap { try? AgentIssue.parse($0, repo: repo) } ?? []
+                }
+            }
+            var collected: [AgentIssue] = []
+            for await result in group { collected += result }
+            return collected
+        }
+        agentIssues = results
     }
 
     private func loadPullRequests(_ cli: GitHubCLI) async {

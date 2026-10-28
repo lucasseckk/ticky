@@ -163,7 +163,20 @@ import Foundation
         let examples = PullRequest.examples(login: "lucas")
         precondition(examples.allSatisfy(\.isExample) && Set(examples.map(\.id)).count == examples.count)
         precondition(examples.filter { $0.category(for: "lucas") == .review }.count == 3)
-        precondition(examples.contains { $0.ci == .failure && !$0.canMerge } && examples.contains { $0.isDraft && !$0.canMerge })
+        precondition(examples.contains { $0.ci == .failure && !$0.canMerge } && examples.contains { $0.ci == .success && $0.canMerge })
+        let issueJSON = Data("""
+        [{"number":3,"title":"A","body":"Text","url":"https://github.com/a/b/issues/3","createdAt":"2026-10-27T10:00:00Z","closedAt":null,"state":"OPEN","labels":[{"name":"agent"}],"closedByPullRequestsReferences":[]},
+         {"number":4,"title":"B","body":"","url":"https://github.com/a/b/issues/4","createdAt":"2026-10-27T10:00:00Z","closedAt":null,"state":"OPEN","labels":[{"name":"agent"},{"name":"agent:in-arbeit"}],"closedByPullRequestsReferences":[]},
+         {"number":5,"title":"C","url":"https://github.com/a/b/issues/5","createdAt":"2026-10-27T10:00:00Z","state":"OPEN","labels":[],"closedByPullRequestsReferences":[{"url":"https://github.com/a/b/pull/9"}]},
+         {"number":6,"title":"D","url":"https://github.com/a/b/issues/6","createdAt":"2026-10-27T10:00:00Z","closedAt":"2026-10-28T10:00:00Z","state":"CLOSED","labels":[],"closedByPullRequestsReferences":[{"url":"https://github.com/a/b/pull/9"}]}]
+        """.utf8)
+        let agentIssues = try AgentIssue.parse(issueJSON, repo: "a/b")
+        precondition(agentIssues.map(\.status) == [.open, .inProgress, .prOpen, .done])
+        precondition(agentIssues[2].pullRequest?.absoluteString == "https://github.com/a/b/pull/9" && agentIssues[3].closed != nil)
+        precondition(agentIssues[0].prompt.contains("#3") && agentIssues[0].prompt.contains("Text") && agentIssues[0].prompt.contains("Closes #3"))
+        let issueBody = AgentIssue.body(task: " Suche erweitern ", criteria: "Tags finden\n\n- Tests grün")
+        precondition(issueBody.hasPrefix("## Aufgabe\n\nSuche erweitern\n") && issueBody.contains("- [ ] Tags finden\n- [ ] Tests grün"))
+        precondition(!AgentIssue.body(task: "x", criteria: " ").contains("Akzeptanzkriterien"))
         let original = Data("unlesbare Daten".utf8)
         try original.write(to: file)
         let corrupt = Store(file: file)
@@ -171,6 +184,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Beispiel-PRs, Dev-To-dos, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dev-To-dos, Löschen, Schutz beschädigter Daten")
     }
 }

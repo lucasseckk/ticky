@@ -24,6 +24,12 @@ struct DevView: View {
     @ObservedObject var store: Store
     let openSettings: () -> Void
     @State private var newDevTodo = ""
+    @State private var showAgentForm = false
+    @State private var agentRepo = ""
+    @State private var agentTitle = ""
+    @State private var agentTask = ""
+    @State private var agentCriteria = ""
+    @State private var agentBusy = false
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
     @AppStorage("lowPriorityColor") private var lowPriorityColorHex = "#94BD80"
@@ -49,6 +55,7 @@ struct DevView: View {
                                         .font(.caption)
                                         .foregroundStyle(.orange)
                                 }
+                                agentSection
                                 devTodos
                                 section(.review, "Review von mir angefordert", "eyes")
                                 section(.mine, "Meine PRs", "arrow.up.right")
@@ -67,6 +74,7 @@ struct DevView: View {
                             .padding(.vertical, 6)
                             .animation(.island, value: PullRequest.Category.allCases.flatMap { dev.pullRequests(in: $0) })
                             .animation(.island, value: store.todos.filter(\.isDev).map(\.id))
+                            .animation(.island, value: dev.visibleAgentIssues)
                         }
                     }
                 }
@@ -98,6 +106,167 @@ struct DevView: View {
         }
     }
 
+    // MARK: Agent-Aufgaben (#27): GitHub-Issues mit Label `agent`, lesbar für Coding-Agents
+
+    @ViewBuilder private var agentSection: some View {
+        let issues = dev.visibleAgentIssues
+        HStack(spacing: 6) {
+            Label("Agent-Aufgaben", systemImage: "cpu").font(.headline)
+            Text("\(issues.filter { $0.status != .done }.count)").font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Button { withAnimation(.island) { showAgentForm.toggle() } } label: {
+                Label(showAgentForm ? "Schließen" : "Neue Aufgabe", systemImage: showAgentForm ? "xmark" : "plus")
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .islandCapsule()
+            }
+            .buttonStyle(.plain)
+            .disabled(dev.selectedRepos.isEmpty)
+            .help("Legt ein GitHub-Issue mit Label „agent“ an, das Coding-Agents finden und abarbeiten können")
+        }
+        .padding(.horizontal, 4)
+        if showAgentForm { agentForm }
+        if issues.isEmpty && !showAgentForm {
+            Text("Noch keine Issues mit Label „agent“. Agents finden sie mit `gh issue list --label agent`.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+        }
+        ForEach(issues) { issue in agentCard(issue) }
+    }
+
+    private var agentForm: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker("Repository", selection: $agentRepo) {
+                ForEach(dev.selectedRepos, id: \.self) { Text($0).tag($0) }
+            }
+            TextField("Titel, z. B. „Suche um Tags erweitern“", text: $agentTitle)
+                .textFieldStyle(.roundedBorder)
+            TextField("Was soll der Agent tun? Kontext, betroffene Dateien …", text: $agentTask, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(3...6)
+            TextField("Akzeptanzkriterien, eine pro Zeile", text: $agentCriteria, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(2...5)
+            HStack {
+                Text("Wird als Issue mit Label „agent“ angelegt.").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button(action: createAgentIssue) {
+                    Group {
+                        if agentBusy { ProgressView().controlSize(.small) } else { Text("Issue anlegen") }
+                    }
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Color.white, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(agentBusy || agentTitle.trimmingCharacters(in: .whitespaces).isEmpty || agentTask.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+        }
+        .padding(12)
+        .islandSurface()
+        .onAppear { if !dev.selectedRepos.contains(agentRepo) { agentRepo = dev.selectedRepos.first ?? "" } }
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+
+    private func agentCard(_ issue: AgentIssue) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(issue.title).font(.body.weight(.medium)).lineLimit(2).strikethrough(issue.status == .done)
+                HStack(spacing: 5) {
+                    agentStatusPill(issue)
+                    InfoPill(text: "\(issue.repo.split(separator: "/").last.map(String.init) ?? issue.repo) #\(issue.number)", systemImage: "number")
+                    InfoPill(text: issue.created.formatted(.relative(presentation: .named)), systemImage: "clock")
+                }
+            }
+            Spacer(minLength: 0)
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(issue.prompt, forType: .string)
+                withAnimation(.island) { toast = ("Prompt für #\(issue.number) kopiert – in Claude Code oder Codex einfügen", true) }
+            } label: {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 28, height: 28)
+                    .background(Color.white.opacity(0.12), in: Circle())
+            }
+            .accessibilityLabel("Prompt kopieren")
+            .buttonStyle(.plain)
+            .disabled(issue.status == .done)
+            .help("Fertigen Prompt für einen Coding-Agent kopieren")
+            Menu {
+                Button("Issue im Browser öffnen") { NSWorkspace.shared.open(issue.url) }
+                if let pr = issue.pullRequest { Button("Pull Request öffnen") { NSWorkspace.shared.open(pr) } }
+                if issue.status == .open { Button("Als „in Arbeit“ markieren") { runAgentAction { try await dev.setInProgress(issue, true) } } }
+                if issue.status == .inProgress { Button("Zurück auf „offen“") { runAgentAction { try await dev.setInProgress(issue, false) } } }
+                Divider()
+                Button("Label „agent“ entfernen", role: .destructive) { runAgentAction { try await dev.removeAgentLabel(issue) } }
+            } label: { Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)) }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .frame(width: 28, height: 28)
+            .background(Color.white.opacity(0.12), in: Circle())
+            .accessibilityLabel("Optionen für \(issue.title)")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .islandCard(stripe: Self.color(issue.status))
+        .opacity(issue.status == .done ? 0.55 : 1)
+        .contentShape(RoundedRectangle(cornerRadius: 16))
+        .onTapGesture { NSWorkspace.shared.open(issue.url) }
+        .help("Issue im Browser öffnen")
+    }
+
+    @ViewBuilder private func agentStatusPill(_ issue: AgentIssue) -> some View {
+        let tint = Self.color(issue.status)
+        switch issue.status {
+        case .open: InfoPill(text: "Offen", systemImage: "circle", tint: tint)
+        case .inProgress: InfoPill(text: "In Arbeit", systemImage: "gearshape.2", tint: tint)
+        case .prOpen:
+            Button { if let pr = issue.pullRequest { NSWorkspace.shared.open(pr) } } label: {
+                InfoPill(text: "PR #\(issue.pullRequest?.lastPathComponent ?? "")", systemImage: "arrow.triangle.pull", tint: tint)
+            }
+            .buttonStyle(.plain)
+            .help("Verknüpften Pull Request öffnen")
+        case .done: InfoPill(text: "Erledigt", systemImage: "checkmark", tint: tint)
+        }
+    }
+
+    private static func color(_ status: AgentIssue.Status) -> Color {
+        switch status {
+        case .open: return .gray
+        case .inProgress: return .yellow
+        case .prOpen: return .blue
+        case .done: return .green
+        }
+    }
+
+    private func createAgentIssue() {
+        let repo = agentRepo, title = agentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = AgentIssue.body(task: agentTask, criteria: agentCriteria)
+        agentBusy = true
+        Task {
+            do {
+                try await dev.createAgentIssue(repo: repo, title: title, body: body)
+                agentTitle = ""; agentTask = ""; agentCriteria = ""
+                withAnimation(.island) { showAgentForm = false; toast = ("Agent-Aufgabe angelegt", true) }
+            } catch {
+                withAnimation(.island) { toast = ("Anlegen fehlgeschlagen: \(error.localizedDescription)", false) }
+            }
+            agentBusy = false
+        }
+    }
+
+    private func runAgentAction(_ action: @escaping () async throws -> Void) {
+        Task {
+            do { try await action() } catch {
+                withAnimation(.island) { toast = ("Fehlgeschlagen: \(error.localizedDescription)", false) }
+            }
+        }
+    }
+
     private var devItems: [Todo] {
         store.todos.filter(\.isDev).sorted { $0.done != $1.done ? !$0.done : $0.priority.rawValue != $1.priority.rawValue ? $0.priority.rawValue > $1.priority.rawValue : $0.created < $1.created }
     }
@@ -105,7 +274,7 @@ struct DevView: View {
     /// Dev to-dos (#49): collected from pull requests or added by hand, separate from the normal list.
     @ViewBuilder private var devTodos: some View {
         HStack(spacing: 6) {
-            Label("Dev-To-dos", systemImage: "checklist").font(.headline)
+            Label("Meine Dev-To-dos", systemImage: "checklist").font(.headline)
             Text("\(devItems.filter { !$0.done }.count)").font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 4)
@@ -242,16 +411,16 @@ struct DevView: View {
 
     private func counterRow(_ proxy: ScrollViewProxy) -> some View {
         HStack(spacing: 6) {
-            counter("eyes", "Review", reviewCount) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.review, anchor: .top) } }
-            counter("xmark.circle", "CI rot", failingCount) {
+            counter("eyes", "Review", reviewCount, .orange) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.review, anchor: .top) } }
+            counter("xmark.circle", "CI rot", failingCount, .red) {
                 let target = PullRequest.Category.allCases.first { dev.pullRequests(in: $0).contains { $0.ci == .failure } } ?? .review
                 withAnimation(.island) { proxy.scrollTo(target, anchor: .top) }
             }
-            counter("arrow.up.right", "Meine PRs", dev.pullRequests(in: .mine).count) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.mine, anchor: .top) } }
+            counter("arrow.up.right", "Meine PRs", dev.pullRequests(in: .mine).count, .blue) { withAnimation(.island) { proxy.scrollTo(PullRequest.Category.mine, anchor: .top) } }
         }
     }
 
-    private func counter(_ systemImage: String, _ label: String, _ count: Int, action: @escaping () -> Void) -> some View {
+    private func counter(_ systemImage: String, _ label: String, _ count: Int, _ tint: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 5) {
                 Image(systemName: systemImage)
@@ -259,11 +428,13 @@ struct DevView: View {
                 Text(label).foregroundStyle(.secondary)
             }
             .font(.caption.weight(.semibold))
-            .foregroundStyle(count > 0 ? Color.primary : Color.secondary)
+            .foregroundStyle(count > 0 ? tint : Color.secondary)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 7)
             .background(Color.black, in: Capsule())
-            .overlay(Capsule().strokeBorder(Color.white.opacity(count > 0 ? 0.25 : 0.1)))
+            .background(count > 0 ? tint.opacity(0.12) : .clear, in: Capsule())
+            .overlay(Capsule().strokeBorder(count > 0 ? tint.opacity(0.6) : Color.white.opacity(0.1)))
+            .shadow(color: count > 0 ? tint.opacity(0.3) : .clear, radius: 5)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(label): \(count)")
