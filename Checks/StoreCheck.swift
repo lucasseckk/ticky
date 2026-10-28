@@ -177,6 +177,16 @@ import Foundation
         let issueBody = AgentIssue.body(task: " Suche erweitern ", criteria: "Tags finden\n\n- Tests grün")
         precondition(issueBody.hasPrefix("## Aufgabe\n\nSuche erweitern\n") && issueBody.contains("- [ ] Tags finden\n- [ ] Tests grün"))
         precondition(!AgentIssue.body(task: "x", criteria: " ").contains("Akzeptanzkriterien"))
+        let openJSON = Data("""
+        [{"number":10,"title":"[P1-07] Absturz","url":"https://github.com/a/b/issues/10","labels":[],"assignees":[],"updatedAt":"2026-10-27T10:00:00Z"},
+         {"number":11,"title":"Login kaputt","url":"https://github.com/a/b/issues/11","labels":[{"name":"Dringend"}],"assignees":[],"updatedAt":"2026-10-27T10:00:00Z"},
+         {"number":12,"title":"[P3-02] Doku","url":"https://github.com/a/b/issues/12","labels":[{"name":"agent"}],"assignees":[{"login":"lucas"}],"updatedAt":"2026-10-27T10:00:00Z"},
+         {"number":13,"title":"[P2-01] Später","url":"https://github.com/a/b/issues/13","labels":[],"assignees":[],"updatedAt":"2026-10-27T10:00:00Z"}]
+        """.utf8)
+        let urgent = try UrgentIssue.parse(openJSON, repo: "a/b")
+        precondition(urgent.map { $0.isUrgent(for: "lucas") } == [true, true, true, false])
+        precondition(!urgent[2].isUrgent(for: "max") && urgent[2].isAgent && !urgent[0].isAgent)
+        precondition(urgent[0].rank == (1, 7) && urgent[1].rank == (9, 11) && urgent[2].rank == (3, 2))
         let original = Data("unlesbare Daten".utf8)
         try original.write(to: file)
         let corrupt = Store(file: file)
@@ -184,6 +194,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dev-To-dos, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
     }
 }

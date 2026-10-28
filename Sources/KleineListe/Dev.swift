@@ -30,6 +30,7 @@ struct DevView: View {
     @State private var agentTask = ""
     @State private var agentCriteria = ""
     @State private var agentBusy = false
+    @State private var urgentRepo: String?
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
     @AppStorage("lowPriorityColor") private var lowPriorityColorHex = "#94BD80"
@@ -55,6 +56,7 @@ struct DevView: View {
                                         .font(.caption)
                                         .foregroundStyle(.orange)
                                 }
+                                urgentSection
                                 agentSection
                                 devTodos
                                 section(.review, "Review von mir angefordert", "eyes")
@@ -75,6 +77,7 @@ struct DevView: View {
                             .animation(.island, value: PullRequest.Category.allCases.flatMap { dev.pullRequests(in: $0) })
                             .animation(.island, value: store.todos.filter(\.isDev).map(\.id))
                             .animation(.island, value: dev.visibleAgentIssues)
+                            .animation(.island, value: dev.urgentIssues)
                         }
                     }
                 }
@@ -104,6 +107,78 @@ struct DevView: View {
                 try? await Task.sleep(for: .seconds(120))
             }
         }
+    }
+
+    // MARK: Dringende Issues (#26): „[P1…“, Label `dringend`/`P1` oder mir zugewiesen
+
+    @ViewBuilder private var urgentSection: some View {
+        let all = dev.urgentIssues
+        let repos = Array(Set(all.map(\.repo))).sorted()
+        let shown = all.filter { urgentRepo == nil || $0.repo == urgentRepo }
+        if !all.isEmpty {
+            HStack(spacing: 6) {
+                Label("Dringende Issues", systemImage: "flame").font(.headline)
+                Text("\(shown.count)").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if repos.count > 1 {
+                    Menu(urgentRepo.map(repoName) ?? "Alle Repos") {
+                        Button("Alle Repos") { withAnimation(.island) { urgentRepo = nil } }
+                        Divider()
+                        ForEach(repos, id: \.self) { repo in Button(repo) { withAnimation(.island) { urgentRepo = repo } } }
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .font(.caption.weight(.semibold))
+                }
+            }
+            .padding(.horizontal, 4)
+            ForEach(shown) { issue in urgentCard(issue) }
+        }
+    }
+
+    private func repoName(_ repo: String) -> String { repo.split(separator: "/").last.map(String.init) ?? repo }
+
+    private func urgentCard(_ issue: UrgentIssue) -> some View {
+        let linked = store.todos.contains { $0.isDev && $0.link == issue.url }
+        return HStack(alignment: .center, spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(issue.title).font(.body.weight(.medium)).lineLimit(2)
+                HStack(spacing: 5) {
+                    InfoPill(text: "\(repoName(issue.repo)) #\(issue.number)", systemImage: "number")
+                    ForEach(issue.labels.prefix(2), id: \.self) { InfoPill(text: $0, systemImage: "tag") }
+                    if let assignee = issue.assignees.first { InfoPill(text: "@\(assignee)", systemImage: "person") }
+                    InfoPill(text: issue.updated.formatted(.relative(presentation: .named)), systemImage: "clock")
+                }
+            }
+            Spacer(minLength: 0)
+            Menu {
+                Button("Im Browser öffnen") { NSWorkspace.shared.open(issue.url) }
+                Button(linked ? "Bereits als Dev-To-do übernommen" : "Als Dev-To-do übernehmen") {
+                    let priority: Priority = issue.rank.priority <= 1 ? .high : issue.rank.priority == 2 ? .normal : .low
+                    withAnimation(.island) { store.save(Todo(title: "\(issue.title) (\(repoName(issue.repo)) #\(issue.number))", priority: priority, isDev: true, link: issue.url)) }
+                    withAnimation(.island) { toast = ("Als Dev-To-do gespeichert", true) }
+                }
+                .disabled(linked)
+                if !issue.isAgent {
+                    Button("An Agent übergeben (Label „agent“)") {
+                        runAgentAction {
+                            try await dev.markAsAgent(issue)
+                            withAnimation(.island) { toast = ("#\(issue.number) ist jetzt eine Agent-Aufgabe", true) }
+                        }
+                    }
+                }
+            } label: { Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)) }
+            .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            .frame(width: 28, height: 28)
+            .background(Color.white.opacity(0.12), in: Circle())
+            .accessibilityLabel("Optionen für \(issue.title)")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .islandCard(stripe: issue.rank.priority <= 1 ? .red : .orange)
+        .contentShape(RoundedRectangle(cornerRadius: 16))
+        .onTapGesture { NSWorkspace.shared.open(issue.url) }
+        .help("Issue im Browser öffnen")
     }
 
     // MARK: Agent-Aufgaben (#27): GitHub-Issues mit Label `agent`, lesbar für Coding-Agents
