@@ -405,10 +405,9 @@ struct UndoStep: Identifiable {
               Set(backup.customPriorities.map(\.id)).count == backup.customPriorities.count else { throw ImportError.duplicateIDs }
         guard writable else { throw CocoaError(.fileWriteNoPermission) }
         let directory = file.deletingLastPathComponent().appendingPathComponent("Backups")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
         let safety = directory.appendingPathComponent("vor-import-\(stamp).json")
-        try exportData().write(to: safety, options: .atomic)
+        try writePrivately(exportData(), to: safety)
         let groupIDs = Set(backup.groups.map(\.id)), priorityIDs = Set(backup.customPriorities.map(\.id))
         recordUndo("Sicherung importiert")
         todos = backup.todos.map { todo in
@@ -440,21 +439,29 @@ struct UndoStep: Identifiable {
     }
     private func persist() {
         do {
-            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(todos).write(to: file, options: .atomic)
+            try writePrivately(JSONEncoder().encode(todos), to: file)
             error = nil
         } catch { self.error = "Speichern fehlgeschlagen. Änderungen sind vorerst nur im Arbeitsspeicher. \(error.localizedDescription)" }
     }
     private func persistGroups() {
         do {
-            try FileManager.default.createDirectory(at: groupsFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(groups).write(to: groupsFile, options: .atomic)
+            try writePrivately(JSONEncoder().encode(groups), to: groupsFile)
         } catch let saveError { self.error = "Gruppen konnten nicht gespeichert werden. \(saveError.localizedDescription)" }
     }
     private func persistPriorities() {
         do {
-            try FileManager.default.createDirectory(at: prioritiesFile.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try JSONEncoder().encode(customPriorities).write(to: prioritiesFile, options: .atomic)
+            try writePrivately(JSONEncoder().encode(customPriorities), to: prioritiesFile)
         } catch let saveError { self.error = "Custom-Prioritäten konnten nicht gespeichert werden. \(saveError.localizedDescription)" }
     }
+}
+
+/// Writes atomically and readable only by the current user: folder 0700, file 0600.
+/// Encryption at rest is left to FileVault (see README, „Sicherheitsgrenzen“).
+func writePrivately(_ data: Data, to url: URL) throws {
+    let manager = FileManager.default
+    let directory = url.deletingLastPathComponent()
+    try manager.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+    try data.write(to: url, options: .atomic)
+    try manager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
 }

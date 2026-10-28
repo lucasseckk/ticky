@@ -10,6 +10,8 @@ import Foundation
         store.save(Todo(title: "  Lernen  ", priority: .high, due: Date(timeIntervalSince1970: 2000000000), extraReminder: .oneHour))
         let loaded = Store(file: file)
         precondition(loaded.error == nil)
+        func permissions(_ url: URL) -> Int { (try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int) ?? -1 }
+        precondition(permissions(file) == 0o600 && permissions(directory) == 0o700)
         precondition(loaded.todos.first?.title == "Lernen")
         precondition(loaded.todos.first?.priority == .high)
         precondition(loaded.todos.first?.due == Date(timeIntervalSince1970: 2000000000))
@@ -112,6 +114,7 @@ import Foundation
         precondition(Store(file: directory.appendingPathComponent("ziel/todos.json")).todos.map(\.title) == ["Alt"])
         let safety = try target.importData(exported)
         let saved = try BackupFile.decoder().decode(BackupFile.self, from: Data(contentsOf: safety))
+        precondition(permissions(safety) == 0o600)
         precondition(saved.todos.map(\.title) == ["Alt"])
         let reloaded = Store(file: directory.appendingPathComponent("ziel/todos.json"))
         precondition(reloaded.todos.map(\.title) == ["Lernen"])
@@ -194,6 +197,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
     }
 }
