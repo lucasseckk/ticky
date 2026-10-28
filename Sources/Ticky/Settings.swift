@@ -43,7 +43,7 @@ struct SettingsView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
                             SettingsCard(title: "Start", systemImage: "power", subtitle: "Starten über Spotlight („Ticky“) oder das Dock, beenden per Rechtsklick aufs Dock-Icon oder hier. Autostart beim Anmelden ist optional und lässt sich jederzeit wieder entfernen.") {
-                                Toggle("Beim Anmelden automatisch starten", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
+                                Toggle("Beim Anmelden automatisch starten", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
                                 Toggle("Panel überall mit \(GlobalShortcut.label) öffnen", isOn: $globalShortcut)
                                     .onChange(of: globalShortcut) { _, enabled in GlobalShortcut.setEnabled(enabled) }
                                 Toggle("Im Dock anzeigen", isOn: $showInDock)
