@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="docs/images/icon.png" width="112" alt="App-Icon: Uhr mit Gesicht">
+<img src="docs/images/icon.png" width="112" alt="Ticky-Icon: Uhr mit Gesicht">
 
-# To-Do List
+# Ticky
 
 **Uni-Aufgaben und GitHub-Arbeit an einem Ort – direkt in deiner Menüleiste.**
 
@@ -22,7 +22,7 @@
 
 ---
 
-Die App ist eine To-do-Liste, wie man sie kennt – Aufgaben, Fälligkeiten, Erinnerungen, Gruppen. Sie soll aber der **eine Ort** sein, an dem neben Übungsblättern und Abgaben auch die **Entwicklungsarbeit** sichtbar ist: offene Pull Requests, rote CI, dringende Issues und Aufgaben, die Coding-Agents wie Claude Code selbst abarbeiten. Die Oberfläche ist an Apples **Dynamic Island** angelehnt: tiefschwarzes Panel, Pillen und Kapseln, leuchtende Akzente, federnde Animationen.
+**Ticky** ist eine To-do-Liste, wie man sie kennt – Aufgaben, Fälligkeiten, Erinnerungen, Gruppen. Sie soll aber der **eine Ort** sein, an dem neben Übungsblättern und Abgaben auch die **Entwicklungsarbeit** sichtbar ist: offene Pull Requests, rote CI, dringende Issues und Aufgaben, die Coding-Agents wie Claude Code selbst abarbeiten. Die Oberfläche ist an Apples **Dynamic Island** angelehnt: tiefschwarzes Panel, Pillen und Kapseln, leuchtende Akzente, federnde Animationen.
 
 ## Features
 
@@ -80,7 +80,7 @@ zsh check.command          # Regressionstests
 zsh build.command --open   # bauen, installieren und starten
 ```
 
-Die App wird nach `~/Applications/To-Do List.app` installiert und erscheint als Uhr in der Menüleiste und im Dock. Danach startest du sie wie jede App: <kbd>⌘</kbd><kbd>Leertaste</kbd> → „To-Do“. Beenden per Rechtsklick aufs Dock-Icon oder unter Einstellungen → Allgemein → Start; dort lässt sich das Dock-Icon auch ausblenden. Die App ist lokal ad-hoc signiert und nicht für die öffentliche Verteilung notarisiert. Vor einem Neubau eine laufende Instanz mit `pkill -x ToDoList` beenden.
+Die App wird nach `~/Applications/Ticky.app` installiert und erscheint als Uhr in der Menüleiste und im Dock. Danach startest du sie wie jede App: <kbd>⌘</kbd><kbd>Leertaste</kbd> → „Ticky“. Beenden per Rechtsklick aufs Dock-Icon oder unter Einstellungen → Allgemein → Start; dort lässt sich das Dock-Icon auch ausblenden. Die App ist lokal ad-hoc signiert und nicht für die öffentliche Verteilung notarisiert. Vor einem Neubau eine laufende Instanz mit `pkill -x Ticky` beenden.
 
 ## Dev-Bereich
 
@@ -135,7 +135,7 @@ flowchart LR
 Alles bleibt auf deinem Mac:
 
 ```text
-~/Library/Application Support/todo list/
+~/Library/Application Support/Ticky/
 ├── todos.json
 ├── groups.json
 ├── custom-priorities.json

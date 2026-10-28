@@ -17,7 +17,7 @@ import ServiceManagement
             Panel(store: store, dev: dev)
         } label: {
             Image(nsImage: ClockIcon.menuImage(completed: store.count == 0))
-                .accessibilityLabel("To-Do List: \(store.count) offene To-Dos")
+                .accessibilityLabel("Ticky: \(store.count) offene To-Dos")
         }.menuBarExtraStyle(.window)
     }
 }
@@ -802,7 +802,7 @@ struct SettingsView: View {
                 if selectedTab == 0 {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 12) {
-                            SettingsCard(title: "Start", systemImage: "power", subtitle: "Starten über Spotlight („To-Do“) oder das Dock, beenden per Rechtsklick aufs Dock-Icon oder hier. Autostart beim Anmelden ist optional und lässt sich jederzeit wieder entfernen.") {
+                            SettingsCard(title: "Start", systemImage: "power", subtitle: "Starten über Spotlight („Ticky“) oder das Dock, beenden per Rechtsklick aufs Dock-Icon oder hier. Autostart beim Anmelden ist optional und lässt sich jederzeit wieder entfernen.") {
                                 Toggle("Beim Anmelden automatisch starten", isOn: Binding(get: { launchAtLogin }, set: setLaunchAtLogin))
                                 Toggle("Panel überall mit \(GlobalShortcut.label) öffnen", isOn: $globalShortcut)
                                     .onChange(of: globalShortcut) { _, enabled in GlobalShortcut.setEnabled(enabled) }
@@ -815,7 +815,7 @@ struct SettingsView: View {
                                     Text(launchHint).font(.caption).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                                     Button("Anmeldeobjekte in den Systemeinstellungen öffnen") { SMAppService.openSystemSettingsLoginItems() }
                                 }
-                                Button(role: .destructive) { NSApp.terminate(nil) } label: { Label("To-Do List beenden", systemImage: "power") }
+                                Button(role: .destructive) { NSApp.terminate(nil) } label: { Label("Ticky beenden", systemImage: "power") }
                             }
                             SettingsCard(title: "Sortierung", systemImage: "arrow.up.arrow.down", subtitle: manualSort
                                 ? "Ziehe To-Dos auf andere To-Dos und Gruppen am Griff ≡, um die Reihenfolge festzulegen."
@@ -982,9 +982,9 @@ struct SettingsView: View {
     /// Version from Info.plist; `swift run` has no bundle version, hence the fallback (#64).
     private var appVersion: String {
         let info = Bundle.main.infoDictionary
-        guard let version = info?["CFBundleShortVersionString"] as? String else { return "To-Do List · Entwicklungsversion" }
+        guard let version = info?["CFBundleShortVersionString"] as? String else { return "Ticky · Entwicklungsversion" }
         let build = info?["CFBundleVersion"] as? String
-        return "To-Do List · Version \(version)" + (build.map { " (\($0))" } ?? "")
+        return "Ticky · Version \(version)" + (build.map { " (\($0))" } ?? "")
     }
 
     /// Opt-in only: registers or removes the app as login item via the system, no helper app left behind.
@@ -1003,7 +1003,7 @@ struct SettingsView: View {
 
     private func exportBackup() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "To-Do-List-Sicherung \(Date().formatted(.iso8601.year().month().day())).json"
+        panel.nameFieldStringValue = "Ticky-Sicherung \(Date().formatted(.iso8601.year().month().day())).json"
         panel.allowedContentTypes = [.json]
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }

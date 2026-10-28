@@ -279,7 +279,7 @@ enum ImportError: LocalizedError {
     case unreadable, unsupportedVersion(Int), duplicateIDs
     var errorDescription: String? {
         switch self {
-        case .unreadable: return "Die Datei ist keine gültige To-Do-List-Sicherung."
+        case .unreadable: return "Die Datei ist keine gültige Ticky-Sicherung."
         case .unsupportedVersion(let version): return "Sicherungsformat \(version) wird nicht unterstützt."
         case .duplicateIDs: return "Die Sicherung enthält doppelte Einträge."
         }
@@ -307,9 +307,10 @@ struct UndoStep: Identifiable {
     private let prioritiesFile: URL
     init(file: URL? = nil) {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let newDirectory = support.appendingPathComponent("todo list")
-        let oldDirectory = support.appendingPathComponent("KleineListe")
-        if file == nil, !FileManager.default.fileExists(atPath: newDirectory.path), FileManager.default.fileExists(atPath: oldDirectory.path) {
+        // The app was renamed KleineListe → todo list → Ticky (#93); data moves along once.
+        let newDirectory = support.appendingPathComponent("Ticky")
+        let oldDirectory = ["todo list", "KleineListe"].map { support.appendingPathComponent($0) }.first { FileManager.default.fileExists(atPath: $0.path) }
+        if file == nil, !FileManager.default.fileExists(atPath: newDirectory.path), let oldDirectory {
             try? FileManager.default.moveItem(at: oldDirectory, to: newDirectory)
         }
         self.file = file ?? newDirectory.appendingPathComponent("todos.json")

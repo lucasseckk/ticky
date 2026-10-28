@@ -13,7 +13,7 @@ zsh check.command
 zsh build.command --open
 ```
 
-Läuft bereits eine ältere Instanz, wird sie vorher beendet (`pkill -x ToDoList`). Schlägt der Check, der Build oder der Start fehl, wird das im Abschluss klar gemeldet, statt die Aufgabe als fertig zu melden.
+Läuft bereits eine ältere Instanz, wird sie vorher beendet (`pkill -x Ticky`). Schlägt der Check, der Build oder der Start fehl, wird das im Abschluss klar gemeldet, statt die Aufgabe als fertig zu melden.
 
 ## Agent-Aufgaben
 

@@ -133,7 +133,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
             } else if settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional {
                 self.enqueueTestNotification(completion: completion)
             } else {
-                completion("macOS-Benachrichtigungen sind nicht erlaubt. Bitte in Systemeinstellungen > Mitteilungen für To-Do List aktivieren.")
+                completion("macOS-Benachrichtigungen sind nicht erlaubt. Bitte in Systemeinstellungen > Mitteilungen für Ticky aktivieren.")
             }
         }
     }
@@ -230,7 +230,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
 
     private func content(subtitle: String, body: String, kind: NotificationKind, todoID: UUID?, todoTitle: String) -> UNMutableNotificationContent {
         let content = UNMutableNotificationContent()
-        content.title = "To-Do List"
+        content.title = "Ticky"
         content.subtitle = subtitle
         content.body = body
         if UserDefaults.standard.object(forKey: "notificationSound") as? Bool ?? true { content.sound = .default }
