@@ -25,6 +25,25 @@ enum Weekday: Int, Codable, CaseIterable, Hashable, Identifiable, Sendable {
     case monday = 2, tuesday, wednesday, thursday, friday, saturday, sunday
     var id: Int { rawValue }
     var shortLabel: String { ["", "", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][rawValue] }
+    /// Calendar counts Sunday as 1; the stored raw value 8 must stay for existing data.
+    var calendarWeekday: Int { self == .sunday ? 1 : rawValue }
+}
+
+extension RepeatRule {
+    /// The next occurrence strictly after `date`, keeping the time of day. nil for `.none`.
+    func next(after date: Date, days: Set<Weekday>, calendar: Calendar = .current) -> Date? {
+        switch self {
+        case .none: return nil
+        case .daily: return calendar.date(byAdding: .day, value: 1, to: date)
+        case .weekly: return calendar.date(byAdding: .day, value: 7, to: date)
+        case .monthly: return calendar.date(byAdding: .month, value: 1, to: date)
+        case .custom:
+            let weekdays = Set(days.map(\.calendarWeekday))
+            guard !weekdays.isEmpty else { return calendar.date(byAdding: .day, value: 7, to: date) }
+            return (1...7).lazy.compactMap { calendar.date(byAdding: .day, value: $0, to: date) }
+                .first { weekdays.contains(calendar.component(.weekday, from: $0)) }
+        }
+    }
 }
 
 enum ReminderOffset: Int, Codable, CaseIterable, Identifiable, Sendable {
@@ -322,8 +341,17 @@ struct UndoStep: Identifiable {
         todo.snoozedUntil = date
         save(todo)
     }
-    func toggle(_ item: Todo) {
+    func toggle(_ item: Todo, now: Date = Date(), calendar: Calendar = .current) {
         guard writable, var changed = todos.first(where: { $0.id == item.id }) else { return }
+        // A recurring to-do with a date moves on to its next future date instead of staying done (#13).
+        if !changed.done, let due = changed.due, var next = changed.repeatRule.next(after: due, days: changed.repeatDays, calendar: calendar) {
+            while next <= now, let later = changed.repeatRule.next(after: next, days: changed.repeatDays, calendar: calendar) { next = later }
+            recordUndo("„\(changed.title)“ erledigt – nächster Termin \(next.formatted(.dateTime.weekday(.abbreviated).day().month()))")
+            changed.due = next
+            changed.snoozedUntil = nil
+            save(changed)
+            return
+        }
         recordUndo(changed.done ? "„\(changed.title)“ wieder geöffnet" : "„\(changed.title)“ erledigt")
         changed.done.toggle()
         if !changed.done { changed.archived = false }

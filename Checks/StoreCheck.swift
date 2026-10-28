@@ -118,6 +118,23 @@ import Foundation
         let evening = berlin.date(from: DateComponents(year: 2026, month: 10, day: 28, hour: 23, minute: 30))!
         precondition(Snooze.tenMinutes.date(from: evening) == evening.addingTimeInterval(600))
         precondition(Snooze.tomorrow.date(from: evening, calendar: berlin) == berlin.date(from: DateComponents(year: 2026, month: 10, day: 29, hour: 9))!)
+        // Mittwoch, 28.10.2026, 18:00
+        let wednesday = berlin.date(from: DateComponents(year: 2026, month: 10, day: 28, hour: 18))!
+        precondition(RepeatRule.daily.next(after: wednesday, days: [], calendar: berlin) == wednesday.addingTimeInterval(86400))
+        let january31 = berlin.date(from: DateComponents(year: 2027, month: 1, day: 31, hour: 8))!
+        precondition(RepeatRule.monthly.next(after: january31, days: [], calendar: berlin) == berlin.date(from: DateComponents(year: 2027, month: 2, day: 28, hour: 8))!)
+        precondition(RepeatRule.custom.next(after: wednesday, days: [.sunday, .monday], calendar: berlin) == berlin.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 18))!)
+        precondition(RepeatRule.none.next(after: wednesday, days: [], calendar: berlin) == nil)
+        precondition(Weekday.sunday.calendarWeekday == 1 && Weekday.monday.calendarWeekday == 2)
+        let routine = Store(file: file)
+        let review = Todo(title: "Wochenreview", due: berlin.date(from: DateComponents(year: 2026, month: 10, day: 14, hour: 18))!, repeatRule: .weekly)
+        routine.save(review)
+        routine.toggle(review, now: wednesday.addingTimeInterval(3600), calendar: berlin)
+        let advanced = Store(file: file).todos.first { $0.id == review.id }!
+        precondition(!advanced.done && advanced.due == berlin.date(from: DateComponents(year: 2026, month: 11, day: 4, hour: 18))!)
+        routine.undo()
+        precondition(Store(file: file).todos.first { $0.id == review.id }?.due == review.due)
+        routine.delete(review)
         let source = Store(file: directory.appendingPathComponent("quelle/todos.json"))
         source.createGroup(name: "Uni")
         source.updateGroup({ var g = source.groups[0]; g.notes = "Raum 101"; return g }())
@@ -213,6 +230,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Snooze, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Snooze, Wiederholungen, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
     }
 }
