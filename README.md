@@ -188,6 +188,7 @@ Alles bleibt auf deinem Mac:
 | `Sources/Ticky/Island.swift` | Gemeinsamer Island-Look (Pillen, Karten, Schalter, Animation) |
 | `Sources/Ticky/Notifications.swift` | Mitteilungen, Erinnerungen, Snooze |
 | `Sources/Ticky/GlobalShortcut.swift` | Systemweites <kbd>⌃</kbd><kbd>⌥</kbd><kbd>T</kbd>, Dock-Icon |
+| `Resources/Localizable.en.json` | Englische Übersetzung; Deutsch ist die Ausgangssprache, die Systemsprache entscheidet |
 | `Sources/Ticky/ClockIcon.swift` | Uhr mit Gesichtern für Menüleiste, App-Icon und Mitteilungen (`Resources/AppIcon.icns`, `Scripts/`) |
 | `Checks/StoreCheck.swift` | Regressionstests ohne Netzwerk |
 | `build.command` / `check.command` / `install.sh` | Build, Tests und Installer |

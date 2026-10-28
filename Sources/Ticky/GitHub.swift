@@ -5,9 +5,9 @@ enum GitHubError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .missingCLI: return "Die GitHub CLI (gh) ist nicht installiert."
-        case .notLoggedIn: return "Die GitHub CLI ist nicht angemeldet."
-        case .timedOut: return "GitHub hat nicht rechtzeitig geantwortet."
+        case .missingCLI: return String(localized: "Die GitHub CLI (gh) ist nicht installiert.")
+        case .notLoggedIn: return String(localized: "Die GitHub CLI ist nicht angemeldet.")
+        case .timedOut: return String(localized: "GitHub hat nicht rechtzeitig geantwortet.")
         case .failed(let message): return message
         }
     }
@@ -16,7 +16,7 @@ enum GitHubError: LocalizedError, Equatable {
     static func classify(exitCode: Int32, stderr: String) -> GitHubError {
         if exitCode == 4 || stderr.contains("gh auth login") { return .notLoggedIn }
         let message = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        return .failed(message.isEmpty ? "gh wurde mit Code \(exitCode) beendet." : message)
+        return .failed(message.isEmpty ? String(localized: "gh wurde mit Code \(exitCode) beendet.") : message)
     }
 }
 
@@ -127,17 +127,17 @@ struct PullRequest: Identifiable, Equatable, Sendable {
             let data: Payload
         }
         guard let repo = try JSONDecoder().decode(Response.self, from: data).data.repository, let pr = repo.pullRequest else {
-            throw GitHubError.failed("Pull Request nicht gefunden.")
+            throw GitHubError.failed(String(localized: "Pull Request nicht gefunden."))
         }
-        guard pr.state == "OPEN" else { throw GitHubError.failed("Der Pull Request ist nicht mehr offen.") }
-        guard !pr.isDraft else { throw GitHubError.failed("Draft-PRs können nicht gemergt werden.") }
+        guard pr.state == "OPEN" else { throw GitHubError.failed(String(localized: "Der Pull Request ist nicht mehr offen.")) }
+        guard !pr.isDraft else { throw GitHubError.failed(String(localized: "Draft-PRs können nicht gemergt werden.")) }
         switch ci(rollup: pr.commits.nodes.last?.commit.statusCheckRollup?.state) {
-        case .pending: throw GitHubError.failed("Die CI läuft noch – Merge abgebrochen.")
-        case .failure: throw GitHubError.failed("Die CI ist fehlgeschlagen – Merge abgebrochen.")
+        case .pending: throw GitHubError.failed(String(localized: "Die CI läuft noch – Merge abgebrochen."))
+        case .failure: throw GitHubError.failed(String(localized: "Die CI ist fehlgeschlagen – Merge abgebrochen."))
         case .none, .success: break
         }
         guard let flag = mergeFlag(merge: repo.mergeCommitAllowed, squash: repo.squashMergeAllowed, rebase: repo.rebaseMergeAllowed) else {
-            throw GitHubError.failed("Das Repository erlaubt keine Merge-Strategie.")
+            throw GitHubError.failed(String(localized: "Das Repository erlaubt keine Merge-Strategie."))
         }
         return (flag, pr.headRefOid)
     }
@@ -385,7 +385,7 @@ struct RepoSnapshot: Sendable {
     func merge(_ pr: PullRequest) async throws {
         guard let cli = locate() else { throw GitHubError.missingCLI }
         let parts = pr.repo.split(separator: "/", maxSplits: 1).map(String.init)
-        guard parts.count == 2 else { throw GitHubError.failed("Ungültiges Repository \(pr.repo).") }
+        guard parts.count == 2 else { throw GitHubError.failed(String(localized: "Ungültiges Repository \(pr.repo).")) }
         let plan: (flag: String, head: String)
         do {
             plan = try PullRequest.mergePlan(try await cli.run(["api", "graphql", "-f", "query=\(PullRequest.mergeCheckQuery)",

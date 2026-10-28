@@ -126,14 +126,14 @@ struct ShortcutOverlay: View {
     let onClose: () -> Void
 
     private var shortcuts: [(keys: String, action: String)] {
-        [(GlobalShortcut.label, "Panel von überall öffnen"),
-         ("⌘N", "Neues To-do"),
-         ("↑ ↓", "Zwischen Karten wechseln"),
-         ("↩", "Karte umbenennen"),
-         ("Leertaste", "Abhaken"),
-         ("⌘Z", "Rückgängig"),
-         ("Esc", "Abbrechen"),
-         ("⌘/", "Diese Übersicht")]
+        [(GlobalShortcut.label, String(localized: "Panel von überall öffnen")),
+         ("⌘N", String(localized: "Neues To-do")),
+         ("↑ ↓", String(localized: "Zwischen Karten wechseln")),
+         ("↩", String(localized: "Karte umbenennen")),
+         (String(localized: "Leertaste"), String(localized: "Abhaken")),
+         ("⌘Z", String(localized: "Rückgängig")),
+         ("Esc", String(localized: "Abbrechen")),
+         ("⌘/", String(localized: "Diese Übersicht"))]
     }
 
     var body: some View {
@@ -143,7 +143,7 @@ struct ShortcutOverlay: View {
                 HStack {
                     Text("Tastenkürzel").font(.headline)
                     Spacer()
-                    IslandIconButton(systemImage: "xmark", label: "Schließen", action: onClose)
+                    IslandIconButton(systemImage: "xmark", label: String(localized: "Schließen"), action: onClose)
                         .keyboardShortcut(.cancelAction)
                 }
                 ForEach(shortcuts, id: \.action) { shortcut in

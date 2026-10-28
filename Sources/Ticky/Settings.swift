@@ -30,10 +30,10 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                IslandIconButton(systemImage: "arrow.left", label: "Zurück zur To-Do-Liste", action: onClose)
+                IslandIconButton(systemImage: "arrow.left", label: String(localized: "Zurück zur To-Do-Liste"), action: onClose)
                 Text("Einstellungen").font(.headline)
             }
-            IslandSwitch(options: [(0, "Allgemein", nil), (1, "Prioritäten", nil), (2, "Mitteilungen", nil)], selection: $selectedTab)
+            IslandSwitch(options: [(0, String(localized: "Allgemein"), nil), (1, String(localized: "Prioritäten"), nil), (2, String(localized: "Mitteilungen"), nil)], selection: $selectedTab)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -56,11 +56,11 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var general: some View {
-        SettingsCard(title: "Start") {
-            SettingsToggle(title: "Beim Anmelden starten", isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
-            SettingsToggle(title: "Im Dock anzeigen", isOn: $showInDock)
+        SettingsCard(title: String(localized: "Start")) {
+            SettingsToggle(title: String(localized: "Beim Anmelden starten"), isOn: Binding(get: { launchAtLogin }, set: { setLaunchAtLogin($0) }))
+            SettingsToggle(title: String(localized: "Im Dock anzeigen"), isOn: $showInDock)
                 .onChange(of: showInDock) { _, visible in DockIcon.setVisible(visible) }
-            SettingsRow(title: "Panel überall öffnen") {
+            SettingsRow(title: String(localized: "Panel überall öffnen")) {
                 if globalShortcut { ShortcutRecorder() }
                 Toggle("Panel überall öffnen", isOn: $globalShortcut).labelsHidden().toggleStyle(.switch).controlSize(.small)
                     .onChange(of: globalShortcut) { _, enabled in GlobalShortcut.setEnabled(enabled) }
@@ -70,14 +70,14 @@ struct SettingsView: View {
                 Button("Anmeldeobjekte öffnen") { SMAppService.openSystemSettingsLoginItems() }
             }
         }
-        SettingsCard(title: "Sortierung", footer: manualSort ? "Reihenfolge per Ziehen am Griff ≡." : "Offene zuerst, dann Priorität und Fälligkeit.") {
-            IslandSwitch(options: [(false, "Automatisch", nil), (true, "Manuell", nil)], selection: $manualSort)
+        SettingsCard(title: String(localized: "Sortierung"), footer: manualSort ? String(localized: "Reihenfolge per Ziehen am Griff ≡.") : String(localized: "Offene zuerst, dann Priorität und Fälligkeit.")) {
+            IslandSwitch(options: [(false, String(localized: "Automatisch"), nil), (true, String(localized: "Manuell"), nil)], selection: $manualSort)
         }
-        SettingsCard(title: "Dev-Bereich", footer: "Pull Requests und Agent-Aufgaben über die GitHub CLI (gh).") {
-            SettingsToggle(title: "Dev-Bereich anzeigen", isOn: $showDev)
+        SettingsCard(title: String(localized: "Dev-Bereich"), footer: String(localized: "Pull Requests und Agent-Aufgaben über die GitHub CLI (gh).")) {
+            SettingsToggle(title: String(localized: "Dev-Bereich anzeigen"), isOn: $showDev)
         }
-        SettingsCard(title: "Daten", footer: "Sicherung als lesbare JSON-Datei. Vor jedem Import wird automatisch gesichert.") {
-            SettingsRow(title: "Sicherung") {
+        SettingsCard(title: String(localized: "Daten"), footer: String(localized: "Sicherung als lesbare JSON-Datei. Vor jedem Import wird automatisch gesichert.")) {
+            SettingsRow(title: String(localized: "Sicherung")) {
                 Button("Exportieren …", action: exportBackup)
                 Button("Importieren …", action: importBackup)
             }
@@ -96,14 +96,14 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var prioritiesAndGroups: some View {
-        SettingsCard(title: "Prioritäten", footer: "Eigene Stufen 4–5 erinnern wie Hoch, 2–3 wie Mittel, 1 wie Niedrig.") {
-            SettingsToggle(title: "Farbiger Glanz auf Karten", isOn: $priorityGlow)
+        SettingsCard(title: String(localized: "Prioritäten"), footer: String(localized: "Eigene Stufen 4–5 erinnern wie Hoch, 2–3 wie Mittel, 1 wie Niedrig.")) {
+            SettingsToggle(title: String(localized: "Farbiger Glanz auf Karten"), isOn: $priorityGlow)
             Divider().opacity(0.5)
-            ColorRow(label: "Hoch", hex: $highPriorityColorHex) { reminderPicker($highPriorityLeadMinutes) }
-            ColorRow(label: "Mittel", hex: $mediumPriorityColorHex) { reminderPicker($mediumPriorityLeadMinutes) }
-            ColorRow(label: "Niedrig", hex: $lowPriorityColorHex) {
+            ColorRow(label: String(localized: "Hoch"), hex: $highPriorityColorHex) { reminderPicker($highPriorityLeadMinutes) }
+            ColorRow(label: String(localized: "Mittel"), hex: $mediumPriorityColorHex) { reminderPicker($mediumPriorityLeadMinutes) }
+            ColorRow(label: String(localized: "Niedrig"), hex: $lowPriorityColorHex) {
                 Picker("Erinnerung", selection: $lowPriorityReminderHour) {
-                    ForEach(6...22, id: \.self) { hour in Text(String(format: "täglich %02d:00", hour)).tag(hour) }
+                    ForEach(6...22, id: \.self) { hour in Text(String(localized: "täglich \(String(format: "%02d:00", hour))")).tag(hour) }
                 }
                 .labelsHidden().fixedSize()
             }
@@ -134,7 +134,7 @@ struct SettingsView: View {
             .buttonStyle(.link)
             .font(.caption)
         }
-        SettingsCard(title: "Gruppen", footer: "Gruppen bündeln To-Dos mit gemeinsamen Notizen.") {
+        SettingsCard(title: String(localized: "Gruppen"), footer: String(localized: "Gruppen bündeln To-Dos mit gemeinsamen Notizen.")) {
             ForEach(store.groups) { group in
                 ColorRow(label: group.name, hex: groupColorBinding(for: group.id)) {
                     DeleteButton(name: group.name) { store.deleteGroup(group) }
@@ -150,7 +150,7 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var notifications: some View {
-        SettingsCard(title: "Mitteilungen", footer: "Wann erinnert wird, stellst du pro Priorität ein.") {
+        SettingsCard(title: String(localized: "Mitteilungen"), footer: String(localized: "Wann erinnert wird, stellst du pro Priorität ein.")) {
             Label(notificationStatus.text, systemImage: notificationStatus.icon)
                 .font(.callout.weight(.medium))
                 .foregroundStyle(notificationStatus.color)
@@ -160,7 +160,7 @@ struct SettingsView: View {
                     NSWorkspace.shared.open(url)
                 }
             }
-            SettingsToggle(title: "Mitteilungen senden", isOn: $notificationsEnabled)
+            SettingsToggle(title: String(localized: "Mitteilungen senden"), isOn: $notificationsEnabled)
                 .onChange(of: notificationsEnabled) { _, enabled in
                     if enabled {
                         NotificationManager.shared.requestAuthorization { _ in
@@ -170,14 +170,14 @@ struct SettingsView: View {
                         rescheduleNotifications()
                     }
                 }
-            SettingsToggle(title: "Ton abspielen", isOn: $notificationSound)
-            SettingsToggle(title: "Pop-up beim Klick auf eine Mitteilung", isOn: $animatedNotificationPopup)
-            SettingsRow(title: "Test") {
+            SettingsToggle(title: String(localized: "Ton abspielen"), isOn: $notificationSound)
+            SettingsToggle(title: String(localized: "Pop-up beim Klick auf eine Mitteilung"), isOn: $animatedNotificationPopup)
+            SettingsRow(title: String(localized: "Test")) {
                 Button("Senden") {
-                    testResult = ("Wird gesendet …", true)
+                    testResult = (String(localized: "Wird gesendet …"), true)
                     NotificationManager.shared.sendTestNotification { error in
                         DispatchQueue.main.async {
-                            testResult = error.map { ($0, false) } ?? ("Gesendet – erscheint in etwa 1 Sekunde.", true)
+                            testResult = error.map { ($0, false) } ?? (String(localized: "Gesendet – erscheint in etwa 1 Sekunde."), true)
                             refreshNotificationPermission()
                         }
                     }
@@ -215,9 +215,9 @@ struct SettingsView: View {
     /// Version from Info.plist; `swift run` has no bundle version, hence the fallback (#64).
     private var appVersion: String {
         let info = Bundle.main.infoDictionary
-        guard let version = info?["CFBundleShortVersionString"] as? String else { return "Ticky · Entwicklungsversion" }
+        guard let version = info?["CFBundleShortVersionString"] as? String else { return String(localized: "Ticky · Entwicklungsversion") }
         let build = info?["CFBundleVersion"] as? String
-        return "Ticky · Version \(version)" + (build.map { " (\($0))" } ?? "")
+        return String(localized: "Ticky · Version \(version)") + (build.map { " (\($0))" } ?? "")
     }
 
     /// Opt-in only: registers or removes the app as login item via the system, no helper app left behind.
@@ -226,17 +226,17 @@ struct SettingsView: View {
             if enabled { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
             launchHint = nil
         } catch {
-            launchHint = "Nicht geändert: \(error.localizedDescription)"
+            launchHint = String(localized: "Nicht geändert: \(error.localizedDescription)")
         }
         launchAtLogin = SMAppService.mainApp.status == .enabled
         if SMAppService.mainApp.status == .requiresApproval {
-            launchHint = "macOS wartet auf deine Zustimmung unter Systemeinstellungen → Allgemein → Anmeldeobjekte."
+            launchHint = String(localized: "macOS wartet auf deine Zustimmung unter Systemeinstellungen → Allgemein → Anmeldeobjekte.")
         }
     }
 
     private func exportBackup() {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = "Ticky-Sicherung \(Date().formatted(.iso8601.year().month().day())).json"
+        panel.nameFieldStringValue = String(localized: "Ticky-Sicherung \(Date().formatted(.iso8601.year().month().day())).json")
         panel.allowedContentTypes = [.json]
         NSApp.activate(ignoringOtherApps: true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
@@ -244,9 +244,9 @@ struct SettingsView: View {
             // Only the file itself: the chosen folder belongs to the user.
             try store.exportData().write(to: url, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-            dataResult = ("Exportiert: \(url.lastPathComponent)", true)
+            dataResult = (String(localized: "Exportiert: \(url.lastPathComponent)"), true)
         } catch {
-            dataResult = ("Export fehlgeschlagen: \(error.localizedDescription)", false)
+            dataResult = (String(localized: "Export fehlgeschlagen: \(error.localizedDescription)"), false)
         }
     }
 
@@ -259,9 +259,9 @@ struct SettingsView: View {
         do {
             let safety = try store.importData(Data(contentsOf: url))
             rescheduleNotifications()
-            dataResult = ("Importiert. Vorheriger Stand gesichert in Backups/\(safety.lastPathComponent)", true)
+            dataResult = (String(localized: "Importiert. Vorheriger Stand gesichert in Backups/\(safety.lastPathComponent)"), true)
         } catch {
-            dataResult = ("Nichts geändert – \(error.localizedDescription)", false)
+            dataResult = (String(localized: "Nichts geändert – \(error.localizedDescription)"), false)
         }
     }
 
@@ -325,12 +325,12 @@ struct SettingsView: View {
 
     private var notificationStatus: (text: String, icon: String, color: Color) {
         switch notificationPermission {
-        case nil: return ("Status wird geprüft …", "hourglass", .secondary)
-        case .denied: return ("Von macOS blockiert", "bell.slash.fill", .red)
-        case .notDetermined: return ("Noch nicht erlaubt – wird beim Einschalten abgefragt", "bell.badge", .orange)
+        case nil: return (String(localized: "Status wird geprüft …"), "hourglass", .secondary)
+        case .denied: return (String(localized: "Von macOS blockiert"), "bell.slash.fill", .red)
+        case .notDetermined: return (String(localized: "Noch nicht erlaubt – wird beim Einschalten abgefragt"), "bell.badge", .orange)
         case .allowed: return notificationsEnabled
-            ? ("Aktiv – Erinnerungen werden geplant", "bell.fill", .green)
-            : ("Erlaubt, aber ausgeschaltet", "bell", .secondary)
+            ? (String(localized: "Aktiv – Erinnerungen werden geplant"), "bell.fill", .green)
+            : (String(localized: "Erlaubt, aber ausgeschaltet"), "bell", .secondary)
         }
     }
 
@@ -493,7 +493,7 @@ struct ShortcutRecorder: View {
                 .foregroundStyle(.secondary)
                 .help("Auf \(GlobalShortcut.label(modifiers: GlobalShortcut.defaultKey.modifiers, key: GlobalShortcut.defaultKey.key)) zurücksetzen")
             }
-            Button(monitor == nil ? label : rejected ? "Mit ⌘, ⌃ oder ⌥" : "Kürzel drücken …") {
+            Button(monitor == nil ? label : rejected ? String(localized: "Mit ⌘, ⌃ oder ⌥") : String(localized: "Kürzel drücken …")) {
                 monitor == nil ? start() : stop()
             }
             .monospacedDigit()
@@ -527,7 +527,7 @@ struct ShortcutRecorder: View {
 
     private static func keyName(_ event: NSEvent) -> String {
         switch event.keyCode {
-        case 49: return "Leertaste"
+        case 49: return String(localized: "Leertaste")
         case 36: return "↩"
         case 48: return "⇥"
         case 123: return "←"
@@ -537,7 +537,7 @@ struct ShortcutRecorder: View {
         default:
             let text = event.charactersIgnoringModifiers?.uppercased() ?? ""
             return text.unicodeScalars.allSatisfy({ $0.properties.isAlphabetic || $0.properties.numericType != nil || $0.properties.isPatternSyntax })
-                && !text.isEmpty ? text : "Taste \(event.keyCode)"
+                && !text.isEmpty ? text : String(localized: "Taste \(event.keyCode)")
         }
     }
 }

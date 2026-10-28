@@ -14,8 +14,8 @@ struct Editor: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                IslandIconButton(systemImage: "arrow.left", label: "Abbrechen", action: onCancel)
-                Text(isNew ? "Neues To-Do" : "To-Do bearbeiten").font(.headline)
+                IslandIconButton(systemImage: "arrow.left", label: String(localized: "Abbrechen"), action: onCancel)
+                Text(isNew ? String(localized: "Neues To-Do") : String(localized: "To-Do bearbeiten")).font(.headline)
             }
             TextField("Titel", text: $todo.title)
                 .textFieldStyle(.plain)
