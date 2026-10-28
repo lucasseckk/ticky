@@ -196,10 +196,6 @@ import Foundation
         precondition(PullRequest.ci(of: [("COMPLETED", "SKIPPED", nil), ("IN_PROGRESS", nil, nil)]) == .pending)
         precondition(PullRequest.ci(of: [(nil, nil, "PENDING")]) == .pending)
         precondition(PullRequest.ci(of: [(nil, nil, "ERROR")]) == .failure)
-        let examples = PullRequest.examples(login: "lucas")
-        precondition(examples.allSatisfy(\.isExample) && Set(examples.map(\.id)).count == examples.count)
-        precondition(examples.filter { $0.category(for: "lucas") == .review }.count == 3)
-        precondition(examples.contains { $0.ci == .failure && !$0.canMerge } && examples.contains { $0.ci == .success && $0.canMerge })
         let issueJSON = Data("""
         [{"number":3,"title":"A","body":"Text","url":"https://github.com/a/b/issues/3","createdAt":"2026-10-27T10:00:00Z","closedAt":null,"state":"OPEN","labels":[{"name":"agent"}],"closedByPullRequestsReferences":[]},
          {"number":4,"title":"B","body":"","url":"https://github.com/a/b/issues/4","createdAt":"2026-10-27T10:00:00Z","closedAt":null,"state":"OPEN","labels":[{"name":"agent"},{"name":"agent:in-arbeit"}],"closedByPullRequestsReferences":[]},
@@ -230,6 +226,6 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Snooze, Wiederholungen, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Beispiel-PRs, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Snooze, Wiederholungen, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Löschen, Schutz beschädigter Daten")
     }
 }

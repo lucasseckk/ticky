@@ -856,7 +856,6 @@ struct SettingsView: View {
                                 }
                             }
                             SettingsCard(title: "GitHub", systemImage: "chevron.left.forwardslash.chevron.right", subtitle: dev.login.map { "Verbunden als @\($0) über die GitHub CLI. \(dev.selectedRepos.count) von \(dev.availableRepos.count) Repositories erscheinen im Dev-Bereich." } ?? "Nicht verbunden – öffne den Dev-Bereich für die Einrichtung.") {
-                                Toggle("Beispiel-PRs anzeigen (Review, rote CI, Draft …)", isOn: $dev.showsExamples)
                                 ForEach(dev.availableRepos, id: \.self) { repo in
                                     Toggle(repo, isOn: Binding(get: { dev.isSelected(repo) }, set: { selected in
                                         dev.setSelected(repo, selected)
