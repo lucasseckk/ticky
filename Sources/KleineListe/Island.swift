@@ -18,6 +18,9 @@ extension View {
     func islandCard(stripe: Color? = nil, cornerRadius: CGFloat = 16) -> some View {
         padding(.leading, stripe == nil ? 0 : 6)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: cornerRadius))
+            // Soft glow of the priority color, fading from left to right.
+            .background(LinearGradient(colors: [(stripe ?? .clear).opacity(0.22), .clear], startPoint: .leading, endPoint: .init(x: 0.6, y: 0.5)),
+                        in: RoundedRectangle(cornerRadius: cornerRadius))
             .overlay(alignment: .leading) {
                 if let stripe {
                     Capsule().fill(stripe).frame(width: 4).padding(.vertical, 10).padding(.leading, 6)

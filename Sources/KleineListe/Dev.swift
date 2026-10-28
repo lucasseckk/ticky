@@ -65,7 +65,7 @@ struct DevView: View {
                             }
                             .padding(.horizontal, 4)
                             .padding(.vertical, 6)
-                            .animation(.island, value: dev.pullRequests)
+                            .animation(.island, value: PullRequest.Category.allCases.flatMap { dev.pullRequests(in: $0) })
                             .animation(.island, value: store.todos.filter(\.isDev).map(\.id))
                         }
                     }
@@ -208,7 +208,8 @@ struct DevView: View {
                     .lineLimit(1)
             } else if let login = dev.login {
                 Label("@\(login)", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.green)
+                    .shadow(color: .green.opacity(0.8), radius: 5)
             }
             Spacer()
             if let updated = dev.lastUpdated {
@@ -287,7 +288,14 @@ struct DevView: View {
         return HStack(alignment: .center, spacing: 10) {
             CIDot(ci: pr.ci)
             VStack(alignment: .leading, spacing: 5) {
-                Text(pr.title).font(.body.weight(.medium)).lineLimit(2)
+                HStack(spacing: 6) {
+                    Text(pr.title).font(.body.weight(.medium)).lineLimit(2)
+                    if pr.isExample {
+                        Text("Beispiel").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                            .padding(.horizontal, 6).padding(.vertical, 1)
+                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.25)))
+                    }
+                }
                 HStack(spacing: 5) {
                     InfoPill(text: "\(pr.repo.split(separator: "/").last.map(String.init) ?? pr.repo) #\(pr.number)", systemImage: "arrow.triangle.pull")
                     if pr.author != dev.login { InfoPill(text: "@\(pr.author)", systemImage: "person") }
@@ -330,7 +338,7 @@ struct DevView: View {
         .padding(.vertical, 10)
         .islandCard()
         .contentShape(RoundedRectangle(cornerRadius: 16))
-        .onTapGesture { NSWorkspace.shared.open(pr.url) }
+        .onTapGesture { if !pr.isExample { NSWorkspace.shared.open(pr.url) } }
         .help("Im Browser öffnen")
         .onHover { inside in if !inside && confirming { withAnimation(.island) { confirmMergeID = nil } } }
         .transition(.asymmetric(insertion: .opacity, removal: .scale(scale: 0.6).combined(with: .opacity)))
@@ -341,7 +349,7 @@ struct DevView: View {
         Task {
             do {
                 try await dev.merge(pr)
-                withAnimation(.island) { toast = ("PR #\(pr.number) gemergt", true) }
+                withAnimation(.island) { toast = (pr.isExample ? "Beispiel-PR #\(pr.number) gemergt (nur zur Ansicht)" : "PR #\(pr.number) gemergt", true) }
             } catch {
                 withAnimation(.island) { toast = ("Merge fehlgeschlagen: \(error.localizedDescription)", false) }
             }

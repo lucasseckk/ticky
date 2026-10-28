@@ -147,7 +147,9 @@ struct Panel: View {
             }
             if let error = store.error { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
             if let todo = draft {
-                Editor(todo: todo, isNew: draftIsNew, groups: store.groups, customPriorities: store.customPriorities, onSave: saveDraft, onCancel: { withAnimation(.island) { draft = nil } }).id(todo.id)
+                ScrollView {
+                    Editor(todo: todo, isNew: draftIsNew, groups: store.groups, customPriorities: store.customPriorities, onSave: saveDraft, onCancel: { withAnimation(.island) { draft = nil } }).id(todo.id)
+                }
             } else {
                 if showSearch { filterBar }
                 ScrollView {
@@ -223,8 +225,8 @@ struct Panel: View {
         }
         .animation(.island, value: store.undoStep?.id)
         .padding(18)
-        // Fixed list height: the menu bar window does not reliably grow, so the search bar takes space from the list instead.
-        .frame(width: 460, height: draft != nil ? nil : 560, alignment: .top)
+        // Always the same height: if the menu bar window resizes, macOS moves it away from the menu bar.
+        .frame(width: 460, height: 560, alignment: .top)
         .background(Color.black)
         .environment(\.colorScheme, .dark)
         .opacity(panelVisible ? 1 : 0)
@@ -498,8 +500,8 @@ struct Panel: View {
             .padding(.leading, 12)
         }
         .padding(8)
-        .background(Color.white.opacity(hoveredGroupID == group.id ? 0.06 : 0.02), in: RoundedRectangle(cornerRadius: 22))
-        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(hoveredGroupID == group.id ? groupColor.opacity(0.7) : Color.white.opacity(0.08), lineWidth: 1))
+        .background(groupColor.opacity(hoveredGroupID == group.id ? 0.24 : 0.12), in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(groupColor.opacity(hoveredGroupID == group.id ? 0.7 : 0.3), lineWidth: 1))
         .opacity(draggingGroupID == group.id ? 0.4 : 1)
         .background(GeometryReader { proxy in
             Color.clear.preference(key: GroupFramePreferenceKey.self, value: [group.id: proxy.frame(in: .named("todo-list"))])
@@ -795,6 +797,7 @@ struct SettingsView: View {
                                 }
                             }
                             SettingsCard(title: "GitHub", systemImage: "chevron.left.forwardslash.chevron.right", subtitle: dev.login.map { "Verbunden als @\($0) über die GitHub CLI. \(dev.selectedRepos.count) von \(dev.availableRepos.count) Repositories erscheinen im Dev-Bereich." } ?? "Nicht verbunden – öffne den Dev-Bereich für die Einrichtung.") {
+                                Toggle("Beispiel-PRs anzeigen (Review, rote CI, Draft …)", isOn: $dev.showsExamples)
                                 ForEach(dev.availableRepos, id: \.self) { repo in
                                     Toggle(repo, isOn: Binding(get: { dev.isSelected(repo) }, set: { selected in
                                         dev.setSelected(repo, selected)
