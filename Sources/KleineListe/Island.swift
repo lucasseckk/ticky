@@ -9,54 +9,27 @@ extension Animation {
 
 extension View {
     /// Dark capsule surface used for pills, fields and bars.
-    func islandCapsule(tint: Color = .white, active: Bool = false) -> some View {
-        background(active ? tint.opacity(0.28) : Color.white.opacity(0.07), in: Capsule())
-            .overlay(Capsule().strokeBorder(active ? tint.opacity(0.7) : Color.white.opacity(0.1), lineWidth: 1))
+    func islandCapsule() -> some View {
+        background(Color.white.opacity(0.07), in: Capsule())
+            .overlay(Capsule().strokeBorder(Color.white.opacity(0.1), lineWidth: 1))
     }
 
-    /// Black card that fades from the tint color on the left, with a glowing, slowly shimmering border.
-    func islandCard(tint: Color, cornerRadius: CGFloat = 18, shimmer: Bool = true) -> some View {
-        modifier(IslandCard(tint: tint, cornerRadius: cornerRadius, shimmer: shimmer))
+    /// Calm dark card; an optional slim stripe on the left carries the priority color.
+    func islandCard(stripe: Color? = nil, cornerRadius: CGFloat = 16) -> some View {
+        padding(.leading, stripe == nil ? 0 : 6)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: cornerRadius))
+            .overlay(alignment: .leading) {
+                if let stripe {
+                    Capsule().fill(stripe).frame(width: 4).padding(.vertical, 10).padding(.leading, 6)
+                }
+            }
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(Color.white.opacity(0.08)))
     }
 
     /// Plain dark panel for settings and editor sections.
     func islandSurface(cornerRadius: CGFloat = 16) -> some View {
         background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: cornerRadius))
             .overlay(RoundedRectangle(cornerRadius: cornerRadius).strokeBorder(Color.white.opacity(0.1)))
-    }
-}
-
-private struct IslandCard: ViewModifier {
-    let tint: Color
-    let cornerRadius: CGFloat
-    let shimmer: Bool
-    @State private var phase: CGFloat = -1
-
-    func body(content: Content) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius)
-        content
-            .background(
-                LinearGradient(stops: [.init(color: tint.opacity(0.75), location: 0), .init(color: tint.opacity(0.22), location: 0.35), .init(color: .black, location: 0.8)],
-                               startPoint: .leading, endPoint: .trailing),
-                in: shape
-            )
-            .overlay(shape.strokeBorder(LinearGradient(colors: [tint.opacity(0.9), tint.opacity(0.15)], startPoint: .leading, endPoint: .trailing), lineWidth: 1.2))
-            .overlay {
-                if shimmer {
-                    // A highlight band travels along the border.
-                    GeometryReader { proxy in
-                        LinearGradient(colors: [.clear, tint.opacity(0.95), .white.opacity(0.8), tint.opacity(0.95), .clear], startPoint: .leading, endPoint: .trailing)
-                            .frame(width: proxy.size.width * 0.35)
-                            .offset(x: phase * proxy.size.width)
-                    }
-                    .mask(shape.strokeBorder(lineWidth: 1.6))
-                    .allowsHitTesting(false)
-                    .onAppear {
-                        withAnimation(.linear(duration: 4.5).repeatForever(autoreverses: false)) { phase = 1.2 }
-                    }
-                }
-            }
-            .shadow(color: tint.opacity(0.35), radius: 8)
     }
 }
 
@@ -72,8 +45,8 @@ struct InfoPill: View {
             .lineLimit(1)
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .foregroundStyle(tint == .white ? Color.white.opacity(0.85) : tint)
-            .background(tint.opacity(tint == .white ? 0.1 : 0.2), in: Capsule())
+            .foregroundStyle(tint == .white ? Color.white.opacity(0.75) : tint)
+            .background(Color.white.opacity(0.08), in: Capsule())
     }
 }
 
