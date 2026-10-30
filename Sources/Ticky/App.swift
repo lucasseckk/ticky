@@ -619,10 +619,16 @@ struct Panel: View {
         .focused($focusedCard, equals: item.id)
         .focusEffectDisabled()
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(focusedCard == item.id ? 0.6 : 0), lineWidth: 1.5))
-        .onKeyPress(.upArrow) { moveFocus(from: item.id, by: -1) }
-        .onKeyPress(.downArrow) { moveFocus(from: item.id, by: 1) }
-        .onKeyPress(.return) { startEditingTitle(item); return .handled }
+        // While the title field inside this card is being edited, these keys belong to the field (#119).
+        .onKeyPress(.upArrow) { editingTodoID == item.id ? .ignored : moveFocus(from: item.id, by: -1) }
+        .onKeyPress(.downArrow) { editingTodoID == item.id ? .ignored : moveFocus(from: item.id, by: 1) }
+        .onKeyPress(.return) {
+            guard editingTodoID != item.id else { return .ignored }
+            startEditingTitle(item)
+            return .handled
+        }
         .onKeyPress(.space) {
+            guard editingTodoID != item.id else { return .ignored }
             withAnimation(.island) { store.toggle(item) }
             rescheduleNotifications()
             return .handled
