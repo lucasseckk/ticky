@@ -7,6 +7,7 @@ struct SettingsView: View {
     @ObservedObject var dev: DevStore
     let onClose: () -> Void
     @AppStorage("settingsTab") private var selectedTab = 0
+    @ObservedObject private var reminders = NotificationManager.shared
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var launchHint: String?
     @AppStorage("globalShortcut") private var globalShortcut = true
@@ -184,6 +185,8 @@ struct SettingsView: View {
                 }
             }
             if let testResult { resultLabel(testResult) }
+            if let problem = reminders.plan.problem { resultLabel((problem, false)) }
+            else if notificationsEnabled, let summary = reminders.plan.summary { Text(summary).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
         }
         .onAppear { refreshNotificationPermission() }
     }

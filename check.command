@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "${0:A:h}"
 mkdir -p .build/checks
-swiftc -module-cache-path "$PWD/.build/ModuleCache" Sources/Ticky/Store.swift Sources/Ticky/GitHub.swift Checks/StoreCheck.swift -o .build/checks/StoreCheck
+swiftc -module-cache-path "$PWD/.build/ModuleCache" Sources/Ticky/Store.swift Sources/Ticky/GitHub.swift Sources/Ticky/ReminderPlan.swift Checks/StoreCheck.swift -o .build/checks/StoreCheck
 .build/checks/StoreCheck
 swiftc -module-cache-path "$PWD/.build/ModuleCache" Sources/Ticky/ClockIcon.swift Scripts/main.swift -o .build/checks/ClockIconCheck
 .build/checks/ClockIconCheck .build/AppIcon.iconset

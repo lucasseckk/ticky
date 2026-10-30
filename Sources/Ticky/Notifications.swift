@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import UserNotifications
+import os
 
 final class NotificationAppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -57,8 +58,10 @@ enum NotificationPermission {
     }
 }
 
-final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+final class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = NotificationManager()
+    /// Result of the newest scheduling run, shown in panel and settings (#129).
+    @MainActor @Published private(set) var plan = ReminderPlan()
     private let center = UNUserNotificationCenter.current()
     private let queue = DispatchQueue(label: "notification-scheduling")
     private var generation = 0
@@ -94,8 +97,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
                 let openTodos = todos.filter { !$0.done || $0.repeatRule != .none }
                 self.removeDelivered(keeping: Set(openTodos.map(\.id)))
                 guard UserDefaults.standard.bool(forKey: "notificationsEnabled"),
-                      NotificationPermission(settings.authorizationStatus) == .allowed else { return }
-                self.scheduleAll(openTodos, customPriorities: customPriorities)
+                      NotificationPermission(settings.authorizationStatus) == .allowed else {
+                    Task { @MainActor in self.plan = ReminderPlan() }
+                    return
+                }
+                self.scheduleAll(openTodos, customPriorities: customPriorities, generation: current)
             }
         }
     }
@@ -110,12 +116,30 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         }
     }
 
-    private func scheduleAll(_ openTodos: [Todo], customPriorities: [CustomPriority]) {
-        for todo in openTodos {
-            schedule(todo: todo, customPriorities: customPriorities)
-        }
+    /// A reminder before it gets its face attachment, which is only rendered for those actually scheduled.
+    private typealias Pending = (identifier: String, content: UNMutableNotificationContent, trigger: UNCalendarNotificationTrigger)
+
+    private func scheduleAll(_ openTodos: [Todo], customPriorities: [CustomPriority], generation: Int) {
+        var pending = openTodos.flatMap { requests(for: $0, customPriorities: customPriorities) }
         if openTodos.contains(where: { isLowPriority($0, customPriorities: customPriorities) }) {
-            scheduleDailyLowPrioritySummary()
+            pending.append(dailyLowPrioritySummary())
+        }
+        // Only the soonest fit within the system limit instead of failing silently beyond it (#129).
+        let (chosen, skipped) = ReminderPlan.soonest(pending.map { ($0, $0.trigger.nextTriggerDate()) })
+        let group = DispatchGroup()
+        let failures = OSAllocatedUnfairLock(initialState: [String]())
+        for item in chosen {
+            group.enter()
+            center.add(UNNotificationRequest(identifier: item.identifier, content: withFace(item.content), trigger: item.trigger)) { error in
+                if let error { failures.withLock { $0.append(error.localizedDescription) } }
+                group.leave()
+            }
+        }
+        group.notify(queue: .main) { [weak self] in
+            guard let self, self.queue.sync(execute: { generation == self.generation }) else { return }
+            let failed = failures.withLock { $0 }
+            let plan = ReminderPlan(planned: chosen.count - failed.count, skipped: skipped, failures: failed)
+            MainActor.assumeIsolated { self.plan = plan }
         }
     }
 
@@ -146,22 +170,23 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         }
     }
 
-    private func schedule(todo: Todo, customPriorities: [CustomPriority]) {
+    private func requests(for todo: Todo, customPriorities: [CustomPriority]) -> [Pending] {
+        var result: [Pending] = []
         // A snoozed reminder fires once more at the chosen time; the original ones are not repeated.
         if let until = todo.snoozedUntil, until > Date() {
             let content = content(subtitle: String(localized: "Erinnerung · verschoben"), body: String(localized: "„\(todo.title)“ – du wolltest jetzt daran erinnert werden."), kind: .dueSoon, todoID: todo.id, todoTitle: todo.title)
             let components = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: until)
-            center.add(UNNotificationRequest(identifier: "todo-\(todo.id)-snooze", content: withFace(content), trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
+            result.append(("todo-\(todo.id)-snooze", content, UNCalendarNotificationTrigger(dateMatching: components, repeats: false)))
         }
-        guard let due = todo.due else { return }
+        guard let due = todo.due else { return result }
         let leadMinutes = automaticLeadMinutes(for: todo, customPriorities: customPriorities)
         if let leadMinutes {
-            add(todo: todo, fireDate: due.addingTimeInterval(TimeInterval(-leadMinutes * 60)), identifier: "lead", kind: .dueSoon, remainingMinutes: leadMinutes)
+            result += requests(todo: todo, fireDate: due.addingTimeInterval(TimeInterval(-leadMinutes * 60)), identifier: "lead", kind: .dueSoon, remainingMinutes: leadMinutes)
         }
         if todo.extraReminder != .none, todo.extraReminder.rawValue != leadMinutes {
-            add(todo: todo, fireDate: due.addingTimeInterval(TimeInterval(-todo.extraReminder.rawValue * 60)), identifier: "extra", kind: .dueSoon, remainingMinutes: todo.extraReminder.rawValue)
+            result += requests(todo: todo, fireDate: due.addingTimeInterval(TimeInterval(-todo.extraReminder.rawValue * 60)), identifier: "extra", kind: .dueSoon, remainingMinutes: todo.extraReminder.rawValue)
         }
-        add(todo: todo, fireDate: due, identifier: "due", kind: .overdue, remainingMinutes: 0)
+        return result + requests(todo: todo, fireDate: due, identifier: "due", kind: .overdue, remainingMinutes: 0)
     }
 
     private func automaticLeadMinutes(for todo: Todo, customPriorities: [CustomPriority]) -> Int? {
@@ -185,8 +210,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         return todo.priority == .low
     }
 
-    private func add(todo: Todo, fireDate: Date, identifier: String, kind: NotificationKind, remainingMinutes: Int) {
-        if todo.repeatRule == .none, fireDate <= Date() { return }
+    private func requests(todo: Todo, fireDate: Date, identifier: String, kind: NotificationKind, remainingMinutes: Int) -> [Pending] {
+        if todo.repeatRule == .none, fireDate <= Date() { return [] }
         let content = content(
             subtitle: kind == .overdue ? kind.headline : String(localized: "\(kind.headline) · noch \(durationText(remainingMinutes))"),
             body: kind == .overdue ? String(localized: "„\(todo.title)“ ist jetzt fällig.") : String(localized: "„\(todo.title)“ ist in \(durationText(remainingMinutes)) fällig."),
@@ -194,12 +219,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
             todoID: todo.id,
             todoTitle: todo.title
         )
-        for (suffix, trigger) in triggers(for: fireDate, rule: todo.repeatRule, days: todo.repeatDays) {
-            center.add(UNNotificationRequest(identifier: "todo-\(todo.id)-\(identifier)-\(suffix)", content: withFace(content), trigger: trigger))
+        return triggers(for: fireDate, rule: todo.repeatRule, days: todo.repeatDays).map { suffix, trigger in
+            ("todo-\(todo.id)-\(identifier)-\(suffix)", content, trigger)
         }
     }
 
-    private func triggers(for date: Date, rule: RepeatRule, days: Set<Weekday>) -> [(String, UNNotificationTrigger)] {
+    private func triggers(for date: Date, rule: RepeatRule, days: Set<Weekday>) -> [(String, UNCalendarNotificationTrigger)] {
         let calendar = Calendar.current
         switch rule {
         case .none:
@@ -220,12 +245,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate, @un
         }
     }
 
-    private func scheduleDailyLowPrioritySummary() {
+    private func dailyLowPrioritySummary() -> Pending {
         var components = DateComponents()
         components.hour = UserDefaults.standard.integer(forKey: "lowPriorityReminderHour").nonZero(or: 9)
         components.minute = 0
         let content = content(subtitle: NotificationKind.daily.headline, body: String(localized: "Du hast noch niedrig priorisierte To-Dos offen."), kind: .daily, todoID: nil, todoTitle: String(localized: "Du hast noch niedrig priorisierte To-Dos offen."))
-        center.add(UNNotificationRequest(identifier: "daily-low-priority-summary", content: withFace(content), trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)))
+        return ("daily-low-priority-summary", content, UNCalendarNotificationTrigger(dateMatching: components, repeats: true))
     }
 
     private func content(subtitle: String, body: String, kind: NotificationKind, todoID: UUID?, todoTitle: String) -> UNMutableNotificationContent {
