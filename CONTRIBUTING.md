@@ -18,7 +18,7 @@ Vor einem Neubau eine laufende Instanz mit `pkill -x Ticky` beenden.
 - Jede Änderung hat ein GitHub-Issue im Format `[P<Priorität>-<laufende Nr>] Titel` (P1 = dringend … P3 = später).
 - Gearbeitet wird auf eigenen Branches (`feature/<issue>-…`, `fix/<issue>-…`, `docs/<issue>-…`). Commits verweisen mit `Refs #N` / `Closes #N` auf das Issue, gemergt wird über Pull Requests.
 - Vor jedem Pull Request: `zsh check.command` muss grün sein, die App muss bauen und starten. GitHub Actions führt Checks und Build bei jedem Pull Request aus.
-- Release: Tag `vX.Y.Z` pushen; der Workflow baut `Ticky.zip` (Apple Silicon und Intel) und hängt es an ein GitHub-Release.
+- Release: Tag `vX.Y.Z` auf einen Commit von `main` pushen. Der Workflow prüft, dass der Commit auf `main` liegt, führt `check.command` aus, baut `Ticky.zip` (Apple Silicon und Intel) und veröffentlicht es mit `install.sh` (fest auf dieses Release und diesen Commit) und `SHA256SUMS`. Releases nie von Hand hochladen – so landen keine lokalen, ungeprüften Änderungen darin.
 - Kleine, vollständige Änderungen statt großer Umbauten; neue Logik bekommt einen Check in `Checks/StoreCheck.swift`.
 - Texte schreibst du auf Deutsch, die englische Übersetzung kommt nach `Resources/Localizable.en.json`. Texte, die als `String` weitergereicht werden (Toasts, Fehler, Labels), mit `String(localized: "…")` markieren. `check.command` meldet fehlende und nicht mehr benutzte Übersetzungen.
 - Keine Tokens, Passwörter oder persönlichen Daten in Code, Issues oder Screenshots. GitHub-Zugriff läuft ausschließlich über die `gh`-CLI.

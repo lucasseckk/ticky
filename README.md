@@ -75,15 +75,15 @@ Autostart beim Anmelden, globales Tastenkürzel, Sortierung, Gruppen, eigene Pri
 Voraussetzungen: **macOS 14** oder neuer und die **Command Line Tools** von Apple (fehlen sie, fragt der Installer nach – oder vorab `xcode-select --install`).
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lucasseckk/ticky/main/install.sh | zsh
+curl -fsSL https://github.com/lucasseckk/ticky/releases/latest/download/install.sh | zsh
 ```
 
-Der Installer lädt den Code, baut Ticky auf deinem Mac (beim ersten Mal 1–2 Minuten), legt die App nach `~/Applications/Ticky.app` und startet sie. Weil sie lokal gebaut wird, blockiert macOS sie nicht als unbekannten Download. Für ein Update denselben Befehl erneut ausführen – deine Daten bleiben erhalten.
+Der Installer lädt den Code des neuesten Releases – immer einen geprüften, festen Stand, nie den aktuellen Entwicklungsstand –, baut Ticky auf deinem Mac (beim ersten Mal 1–2 Minuten), legt die App nach `~/Applications/Ticky.app` und startet sie. Weil sie lokal gebaut wird, blockiert macOS sie nicht als unbekannten Download. Für ein Update denselben Befehl erneut ausführen – deine Daten bleiben erhalten.
 
 <details>
 <summary><b>Oder fertige App herunterladen</b></summary>
 
-Unter [Releases](https://github.com/lucasseckk/ticky/releases/latest) liegt `Ticky.zip` (Apple Silicon und Intel). Entpacken und `Ticky.app` nach „Programme“ ziehen. Die App ist nicht von Apple notarisiert, deshalb blockiert macOS den ersten Start: Systemeinstellungen → Datenschutz & Sicherheit → bei „Ticky“ auf **Dennoch öffnen** klicken. Alternativ im Terminal:
+Unter [Releases](https://github.com/lucasseckk/ticky/releases/latest) liegt `Ticky.zip` (Apple Silicon und Intel), die Prüfsumme steht in den Release-Notizen und in `SHA256SUMS`. Entpacken und `Ticky.app` nach „Programme“ ziehen. Die App ist nicht von Apple notarisiert, deshalb blockiert macOS den ersten Start: Systemeinstellungen → Datenschutz & Sicherheit → bei „Ticky“ auf **Dennoch öffnen** klicken. Alternativ im Terminal:
 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Ticky.app
