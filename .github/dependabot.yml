@@ -1,0 +1,7 @@
+# Proposes updates for the pinned GitHub Actions (#128); Ticky has no Swift package dependencies.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
