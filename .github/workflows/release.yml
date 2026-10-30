@@ -40,10 +40,45 @@ jobs:
           mkdir -p $app/Contents/Resources/de.lproj $app/Contents/Resources/en.lproj
           echo '{}' | plutil -convert binary1 -o $app/Contents/Resources/de.lproj/Localizable.strings -
           plutil -convert binary1 -o $app/Contents/Resources/en.lproj/Localizable.strings Resources/Localizable.en.json
-          codesign --force --sign - $app
           lipo -archs $app/Contents/MacOS/Ticky
+      # Developer ID + notarization once the secrets exist (#124); until then ad-hoc as before.
+      # Secrets reach only tag builds, never pull requests.
+      - name: Sign and notarize
+        env:
+          CERTIFICATE_P12: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MACOS_CERTIFICATE_P12 || '' }}
+          CERTIFICATE_PASSWORD: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MACOS_CERTIFICATE_PASSWORD || '' }}
+          SIGNING_IDENTITY: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.MACOS_SIGNING_IDENTITY || '' }}
+          NOTARY_APPLE_ID: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.NOTARY_APPLE_ID || '' }}
+          NOTARY_TEAM_ID: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.NOTARY_TEAM_ID || '' }}
+          NOTARY_PASSWORD: ${{ startsWith(github.ref, 'refs/tags/v') && secrets.NOTARY_PASSWORD || '' }}
+        run: |
+          app=Ticky.app
           mkdir dist
+          if [[ -z "$CERTIFICATE_P12" ]]; then
+            echo "::warning::Keine Signier-Secrets – Ticky.app wird nur ad-hoc signiert und nicht notarisiert."
+            codesign --force --sign - $app
+            ditto -c -k --keepParent $app dist/Ticky.zip
+            exit 0
+          fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          echo "$CERTIFICATE_P12" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          codesign --force --options runtime --timestamp --keychain "$keychain" --sign "$SIGNING_IDENTITY" $app
+          codesign --verify --deep --strict --verbose=2 $app
+          ditto -c -k --keepParent $app "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" --apple-id "$NOTARY_APPLE_ID" --team-id "$NOTARY_TEAM_ID" --password "$NOTARY_PASSWORD" --wait
+          xcrun stapler staple $app
+          xcrun stapler validate $app
+          spctl --assess --type execute --verbose $app
           ditto -c -k --keepParent $app dist/Ticky.zip
+          security delete-keychain "$keychain"
       - name: Installer pinned to this release
         run: |
           version="${GITHUB_REF_NAME}"
