@@ -316,11 +316,20 @@ struct UndoStep: Identifiable {
         self.file = file ?? newDirectory.appendingPathComponent("todos.json")
         self.groupsFile = self.file.deletingLastPathComponent().appendingPathComponent("groups.json")
         self.prioritiesFile = self.file.deletingLastPathComponent().appendingPathComponent("custom-priorities.json")
-        do { todos = try JSONDecoder().decode([Todo].self, from: Data(contentsOf: self.file)) }
-        catch let e as CocoaError where e.code == .fileReadNoSuchFile { }
-        catch { writable = false; self.error = String(localized: "Aufgaben konnten nicht geladen werden. Die Datei bleibt erhalten. \(error.localizedDescription)") }
-        if let data = try? Data(contentsOf: groupsFile) { groups = (try? JSONDecoder().decode([TodoGroup].self, from: data)) ?? [] }
-        if let data = try? Data(contentsOf: prioritiesFile) { customPriorities = (try? JSONDecoder().decode([CustomPriority].self, from: data)) ?? [] }
+        todos = load(self.file)
+        groups = load(groupsFile)
+        customPriorities = load(prioritiesFile)
+    }
+    /// A missing file starts empty; an unreadable one stops all saving, so it is never overwritten (#126).
+    private func load<Item: Decodable>(_ url: URL) -> [Item] {
+        do { return try JSONDecoder().decode([Item].self, from: Data(contentsOf: url)) }
+        catch let e as CocoaError where e.code == .fileReadNoSuchFile { return [] }
+        catch {
+            writable = false
+            let message = String(localized: "\(url.lastPathComponent) konnte nicht gelesen werden und bleibt unverändert erhalten. Bis zur Reparatur wird nichts gespeichert. \(error.localizedDescription)")
+            self.error = [self.error, message].compactMap { $0 }.joined(separator: "\n")
+            return []
+        }
     }
     var count: Int { todos.filter { !$0.done && !$0.isDev }.count }
     var overdueCount: Int { openTodos.filter { $0.due.map { $0 < Date() } ?? false }.count }
