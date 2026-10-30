@@ -220,4 +220,6 @@ Vorher Autostart unter Einstellungen → Allgemein → Start ausschalten. Wer se
 
 Beiträge sind willkommen – Ablauf und Regeln in [`CONTRIBUTING.md`](CONTRIBUTING.md), Regeln für Coding-Agents in [`AGENTS.md`](AGENTS.md).
 
+Sicherheitslücken bitte nicht als öffentliches Issue, sondern vertraulich melden – siehe [`SECURITY.md`](SECURITY.md).
+
 Ticky steht unter der [MIT-Lizenz](LICENSE).

@@ -22,6 +22,7 @@ Vor einem Neubau eine laufende Instanz mit `pkill -x Ticky` beenden.
 - Kleine, vollständige Änderungen statt großer Umbauten; neue Logik bekommt einen Check in `Checks/StoreCheck.swift`.
 - Texte schreibst du auf Deutsch, die englische Übersetzung kommt nach `Resources/Localizable.en.json`. Texte, die als `String` weitergereicht werden (Toasts, Fehler, Labels), mit `String(localized: "…")` markieren. `check.command` meldet fehlende und nicht mehr benutzte Übersetzungen.
 - Keine Tokens, Passwörter oder persönlichen Daten in Code, Issues oder Screenshots. GitHub-Zugriff läuft ausschließlich über die `gh`-CLI.
+- Sicherheitslücken nicht als Issue oder Pull Request melden, sondern vertraulich nach [`SECURITY.md`](SECURITY.md).
 
 ## Coding-Agents
 
