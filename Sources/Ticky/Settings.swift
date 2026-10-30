@@ -12,6 +12,7 @@ struct SettingsView: View {
     @AppStorage("globalShortcut") private var globalShortcut = true
     @AppStorage("showInDock") private var showInDock = true
     @AppStorage("showDev") private var showDev = DevStore.enabledByDefault
+    @AppStorage(DevStore.agentDoneHoursKey) private var agentDoneHours = DevStore.agentDoneHoursDefault
     @AppStorage("manualSort") private var manualSort = false
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
@@ -75,6 +76,16 @@ struct SettingsView: View {
         }
         SettingsCard(title: String(localized: "Dev-Bereich"), footer: String(localized: "Pull Requests und Agent-Aufgaben über die GitHub CLI (gh).")) {
             SettingsToggle(title: String(localized: "Dev-Bereich anzeigen"), isOn: $showDev)
+            SettingsRow(title: String(localized: "Erledigte Agent-Aufgaben zeigen")) {
+                Picker("Erledigte Agent-Aufgaben zeigen", selection: $agentDoneHours) {
+                    Text("Nicht").tag(0)
+                    Text("24 Stunden").tag(24)
+                    Text("48 Stunden").tag(48)
+                    Text("1 Woche").tag(168)
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
         }
         SettingsCard(title: String(localized: "Daten"), footer: String(localized: "Sicherung als lesbare JSON-Datei. Vor jedem Import wird automatisch gesichert.")) {
             SettingsRow(title: String(localized: "Sicherung")) {
