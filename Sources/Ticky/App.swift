@@ -557,6 +557,8 @@ struct Panel: View {
                 Image(systemName: item.done ? "checkmark.circle.fill" : "circle").font(.title2)
                     .foregroundStyle(Color.white.opacity(item.done ? 0.5 : 0.85))
             }.buttonStyle(.plain).accessibilityLabel(item.done ? String(localized: "Wieder öffnen: \(item.title)") : String(localized: "Erledigen: \(item.title)"))
+            // Not a focus stop: when the card hands focus to its title field, Space must not land here and check it off (#119).
+            .focusable(false)
             VStack(alignment: .leading, spacing: 6) {
                 if editingTodoID == item.id {
                     TextField("Titel", text: $editingTitle)
@@ -564,6 +566,8 @@ struct Panel: View {
                         .focused($titleFieldFocused)
                         .onSubmit { commitTitle(item.id) }
                         .onExitCommand { editingTodoID = nil }
+                        // The field only exists after editingTodoID is set, so focus it once it is on screen (#119).
+                        .onAppear { titleFieldFocused = true }
                         .onChange(of: titleFieldFocused) { _, focused in
                             if !focused { commitTitle(item.id) }
                         }
@@ -619,10 +623,16 @@ struct Panel: View {
         .focused($focusedCard, equals: item.id)
         .focusEffectDisabled()
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.white.opacity(focusedCard == item.id ? 0.6 : 0), lineWidth: 1.5))
-        .onKeyPress(.upArrow) { moveFocus(from: item.id, by: -1) }
-        .onKeyPress(.downArrow) { moveFocus(from: item.id, by: 1) }
-        .onKeyPress(.return) { startEditingTitle(item); return .handled }
+        // While the title field inside this card is being edited, these keys belong to the field (#119).
+        .onKeyPress(.upArrow) { editingTodoID == item.id ? .ignored : moveFocus(from: item.id, by: -1) }
+        .onKeyPress(.downArrow) { editingTodoID == item.id ? .ignored : moveFocus(from: item.id, by: 1) }
+        .onKeyPress(.return) {
+            guard editingTodoID != item.id else { return .ignored }
+            startEditingTitle(item)
+            return .handled
+        }
         .onKeyPress(.space) {
+            guard editingTodoID != item.id else { return .ignored }
             withAnimation(.island) { store.toggle(item) }
             rescheduleNotifications()
             return .handled
@@ -682,7 +692,6 @@ struct Panel: View {
     private func startEditingTitle(_ item: Todo) {
         editingTitle = item.title
         editingTodoID = item.id
-        titleFieldFocused = true
     }
     private func commitTitle(_ id: UUID) {
         guard editingTodoID == id else { return }
