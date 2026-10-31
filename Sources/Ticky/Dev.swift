@@ -212,12 +212,10 @@ struct DevView: View {
                     withAnimation(.island) { toast = (String(localized: "Als Dev-To-do gespeichert"), true) }
                 }
                 .disabled(linked)
-                if !issue.isAgent {
-                    Button("An Agent übergeben (Label „agent“)") {
-                        runAgentAction {
-                            try await dev.markAsAgent(issue)
-                            withAnimation(.island) { toast = (String(localized: "#\(issue.number) ist jetzt eine Agent-Aufgabe"), true) }
-                        }
+                Button("An Agent übergeben (Label „agent“)") {
+                    runAgentAction {
+                        try await dev.markAsAgent(issue)
+                        withAnimation(.island) { toast = (String(localized: "#\(issue.number) ist jetzt eine Agent-Aufgabe"), true) }
                     }
                 }
             } label: { Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)) }

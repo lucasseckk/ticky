@@ -218,8 +218,10 @@ struct UrgentIssue: Identifiable, Equatable, Sendable {
     }
 
     /// Urgent means: title starts with „[P1“, labelled `dringend` or `P1`, or assigned to me.
+    /// Agent issues have their own section; listing them twice gives the lazy stack duplicate ids and breaks it (#138).
     func isUrgent(for login: String?) -> Bool {
-        title.hasPrefix("[P1") || labels.contains { ["dringend", "p1"].contains($0.lowercased()) }
+        guard !isAgent else { return false }
+        return title.hasPrefix("[P1") || labels.contains { ["dringend", "p1"].contains($0.lowercased()) }
             || (login.map(assignees.contains) ?? false)
     }
 }
