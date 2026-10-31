@@ -31,6 +31,9 @@ struct DevView: View {
     @State private var agentCriteria = ""
     @State private var agentBusy = false
     @State private var urgentRepo: String?
+    @State private var showDevArchive = false
+    @State private var confirmClearDevArchive = false
+    @AppStorage(DevStore.agentDoneHoursKey) private var agentDoneHours = DevStore.agentDoneHoursDefault
     @AppStorage("highPriorityColor") private var highPriorityColorHex = "#C24033"
     @AppStorage("mediumPriorityColor") private var mediumPriorityColorHex = "#E0A63D"
     @AppStorage("lowPriorityColor") private var lowPriorityColorHex = "#94BD80"
@@ -56,13 +59,15 @@ struct DevView: View {
                                         .font(.caption)
                                         .foregroundStyle(.orange)
                                 }
+                                if showDevArchive { devArchive } else {
                                 urgentSection
                                 agentSection
                                 devTodos
                                 section(.review, String(localized: "Review von mir angefordert"), "eyes")
                                 section(.mine, String(localized: "Meine PRs"), "arrow.up.right")
                                 section(.other, String(localized: "Sonstige"), "tray")
-                                if PullRequest.Category.allCases.allSatisfy({ dev.pullRequests(in: $0).isEmpty }) {
+                                }
+                                if !showDevArchive, PullRequest.Category.allCases.allSatisfy({ dev.pullRequests(in: $0).isEmpty }) {
                                     VStack(spacing: 10) {
                                         Image(systemName: "checkmark.seal").font(.system(size: 34))
                                         Text(dev.selectedRepos.isEmpty ? String(localized: "Wähle oben über „Repos“ Repositories aus.") : String(localized: "Keine offenen Pull Requests."))
@@ -75,8 +80,8 @@ struct DevView: View {
                             .padding(.horizontal, 4)
                             .padding(.vertical, 6)
                             .animation(.island, value: PullRequest.Category.allCases.flatMap { dev.pullRequests(in: $0) })
-                            .animation(.island, value: store.todos.filter(\.isDev).map(\.id))
-                            .animation(.island, value: dev.visibleAgentIssues)
+                            .animation(.island, value: store.todos.filter(\.isDev).map { [$0.id.uuidString, "\($0.done)"] })
+                            .animation(.island, value: dev.visibleAgentIssues(hours: agentDoneHours))
                             .animation(.island, value: dev.urgentIssues)
                         }
                     }
@@ -232,7 +237,7 @@ struct DevView: View {
     // MARK: Agent-Aufgaben (#27): GitHub-Issues mit Label `agent`, lesbar für Coding-Agents
 
     @ViewBuilder private var agentSection: some View {
-        let issues = dev.visibleAgentIssues
+        let issues = dev.visibleAgentIssues(hours: agentDoneHours)
         HStack(spacing: 6) {
             Label("Agent-Aufgaben", systemImage: "cpu").font(.headline)
             Text("\(issues.filter { $0.status != .done }.count)").font(.caption).foregroundStyle(.secondary)
@@ -420,15 +425,58 @@ struct DevView: View {
         }
     }
 
+    /// Finished dev to-dos move to the Dev archive (#121).
     private var devItems: [Todo] {
-        store.todos.filter(\.isDev).sorted { $0.done != $1.done ? !$0.done : $0.priority.rawValue != $1.priority.rawValue ? $0.priority.rawValue > $1.priority.rawValue : $0.created < $1.created }
+        store.todos.filter { $0.isDev && !$0.done }.sorted { $0.priority.rawValue != $1.priority.rawValue ? $0.priority.rawValue > $1.priority.rawValue : $0.created < $1.created }
+    }
+
+    // MARK: Dev-Archiv (#121): erledigte Dev-To-dos und abgelaufene erledigte Agent-Aufgaben
+
+    @ViewBuilder private var devArchive: some View {
+        let todos = store.todos.filter { $0.isDev && $0.done }.sorted { $0.created > $1.created }
+        let issues = dev.archivedAgentIssues(hours: agentDoneHours)
+        HStack(spacing: 6) {
+            Label("Dev-Archiv", systemImage: "archivebox").font(.headline)
+            Spacer()
+            if !todos.isEmpty {
+                Button(confirmClearDevArchive ? String(localized: "Wirklich alle löschen?") : String(localized: "Dev-To-dos löschen")) {
+                    if confirmClearDevArchive {
+                        withAnimation(.island) { store.clearDevArchive() }
+                        confirmClearDevArchive = false
+                    } else {
+                        confirmClearDevArchive = true
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(confirmClearDevArchive ? Color.red : Color.primary)
+                .help("Löscht alle erledigten Dev-To-dos; Agent-Aufgaben bleiben auf GitHub")
+            }
+        }
+        .padding(.horizontal, 4)
+        if todos.isEmpty && issues.isEmpty {
+            VStack(spacing: 10) {
+                Image(systemName: "archivebox").font(.system(size: 34))
+                Text("Das Dev-Archiv ist leer.")
+            }
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 40)
+        }
+        if !todos.isEmpty {
+            Text("Erledigte Dev-To-dos").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 4)
+            ForEach(todos) { item in devRow(item) }
+        }
+        if !issues.isEmpty {
+            Text("Erledigte Agent-Aufgaben").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.horizontal, 4)
+            byRepo("archive", issues, repo: \.repo) { issue in agentCard(issue) }
+        }
     }
 
     /// Dev to-dos (#49): collected from pull requests or added by hand, separate from the normal list.
     @ViewBuilder private var devTodos: some View {
         HStack(spacing: 6) {
             Label("Meine Dev-To-dos", systemImage: "checklist").font(.headline)
-            Text("\(devItems.filter { !$0.done }.count)").font(.caption).foregroundStyle(.secondary)
+            Text("\(devItems.count)").font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 4)
         HStack(spacing: 6) {
@@ -534,6 +582,15 @@ struct DevView: View {
                     .shadow(color: .green.opacity(0.8), radius: 5)
             }
             Spacer()
+            Button { withAnimation(.island) { showDevArchive.toggle(); confirmClearDevArchive = false } } label: {
+                Image(systemName: "archivebox")
+                    .frame(width: 28, height: 28)
+                    .foregroundStyle(showDevArchive ? Color.black : Color.white)
+                    .background(showDevArchive ? Color.white : Color.white.opacity(0.1), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help(showDevArchive ? String(localized: "Zurück zum Dev-Bereich") : String(localized: "Dev-Archiv: erledigte Dev-To-dos und Agent-Aufgaben"))
+            .accessibilityLabel("Dev-Archiv")
             if let updated = dev.lastUpdated {
                 Text(updated.formatted(date: .omitted, time: .shortened))
                     .foregroundStyle(.secondary)

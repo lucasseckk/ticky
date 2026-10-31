@@ -418,11 +418,22 @@ struct RepoSnapshot: Sendable {
         }
     }
 
-    /// Open agent issues plus those finished within the last week.
-    var visibleAgentIssues: [AgentIssue] {
-        let weekAgo = Date().addingTimeInterval(-7 * 86400)
-        return agentIssues.filter { selectedRepos.contains($0.repo) && ($0.closed ?? .distantFuture) > weekAgo }
+    /// How long finished agent issues stay in the list before moving to the Dev archive (#121).
+    static let agentDoneHoursKey = "agentDoneHours"
+    static let agentDoneHoursDefault = 48
+
+    /// Open agent issues plus those finished within the last `hours`.
+    func visibleAgentIssues(hours: Int) -> [AgentIssue] {
+        let cutoff = Date().addingTimeInterval(-Double(hours) * 3600)
+        return agentIssues.filter { selectedRepos.contains($0.repo) && ($0.closed ?? .distantFuture) > cutoff }
             .sorted { $0.status.rawValue != $1.status.rawValue ? $0.status.rawValue < $1.status.rawValue : $0.created > $1.created }
+    }
+
+    /// Finished agent issues past the visibility window, newest first; shown in the Dev archive.
+    func archivedAgentIssues(hours: Int) -> [AgentIssue] {
+        let cutoff = Date().addingTimeInterval(-Double(hours) * 3600)
+        return agentIssues.filter { selectedRepos.contains($0.repo) && ($0.closed ?? .distantFuture) <= cutoff }
+            .sorted { ($0.closed ?? $0.created) > ($1.closed ?? $1.created) }
     }
 
     func createAgentIssue(repo: String, title: String, body: String) async throws {

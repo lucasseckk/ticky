@@ -438,6 +438,13 @@ struct UndoStep: Identifiable {
         todos.removeAll(where: \.showsInArchive)
         persist()
     }
+    /// Finished dev to-dos form the Dev archive (#121).
+    func clearDevArchive() {
+        guard writable, todos.contains(where: { $0.isDev && $0.done }) else { return }
+        recordUndo(String(localized: "Dev-Archiv geleert"))
+        todos.removeAll { $0.isDev && $0.done }
+        persist()
+    }
     func exportData() throws -> Data {
         try BackupFile.encoder().encode(BackupFile(todos: todos, groups: groups, customPriorities: customPriorities))
     }
