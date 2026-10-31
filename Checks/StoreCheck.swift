@@ -250,7 +250,11 @@ import Foundation
         precondition(issueBody.hasPrefix("## Aufgabe\n\nSuche erweitern\n") && issueBody.contains("- [ ] Tags finden\n- [ ] Tests grün"))
         precondition(!AgentIssue.body(task: "x", criteria: " ").contains("Akzeptanzkriterien"))
         let urgent = snapshot.openIssues
-        precondition(urgent.map { $0.isUrgent(for: "lucas") } == [true, true, true, false])
+        precondition(urgent.map { $0.isUrgent(for: "lucas") } == [true, true, false, false])
+        // An agent issue is never also urgent: the same id twice in one lazy stack broke the Dev area (#138).
+        let agentIDs = Set(agentIssues.map(\.id))
+        precondition(urgent.allSatisfy { !$0.isAgent || !$0.isUrgent(for: "lucas") })
+        precondition(urgent.filter { $0.isUrgent(for: "lucas") }.allSatisfy { !agentIDs.contains($0.id) })
         precondition(!urgent[2].isUrgent(for: "max") && urgent[2].isAgent && !urgent[0].isAgent)
         precondition(urgent[0].rank == (1, 7) && urgent[1].rank == (9, 11) && urgent[2].rank == (3, 2))
         // Reminders (#129): only the soonest are scheduled, failures and skipped ones stay visible.
