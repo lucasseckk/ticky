@@ -596,6 +596,10 @@ struct Panel: View {
                     ForEach(store.groups) { Text($0.name).tag(Optional($0.id)) }
                 }
                 Button("Fälligkeit und Wiederholung …") { draftIsNew = false; draft = item }
+                // Recurring to-dos stay in the list, so only one-off ones can become agent issues (#139).
+                if showDev && !item.done && item.repeatRule == .none && !dev.selectedRepos.isEmpty {
+                    Button("An Agent übergeben …") { dev.handoff = item; withAnimation(.island) { section = .dev } }
+                }
                 if item.archived {
                     Button("Wiederherstellen") { withAnimation(.island) { store.setArchived(item.id, false) } }
                 } else if item.canArchive {

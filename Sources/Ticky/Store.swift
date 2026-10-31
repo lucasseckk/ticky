@@ -435,6 +435,15 @@ struct UndoStep: Identifiable {
         todos = todos.map { var todo = $0; if todo.canArchive { todo.archived = true }; return todo }
         persist()
     }
+    /// After a to-do became an agent issue (#139): done, archived (dev to-dos go to the Dev archive) and linked to the issue.
+    func handOff(_ id: UUID, to issue: URL?) {
+        guard writable, let index = todos.firstIndex(where: { $0.id == id }) else { return }
+        recordUndo(String(localized: "„\(todos[index].title)“ an Agent übergeben"))
+        todos[index].done = true
+        todos[index].archived = todos[index].canArchive
+        if let issue { todos[index].link = issue }
+        persist()
+    }
     func setArchived(_ id: UUID, _ archived: Bool) {
         guard writable, let index = todos.firstIndex(where: { $0.id == id }), !archived || todos[index].canArchive else { return }
         recordUndo(archived ? String(localized: "„\(todos[index].title)“ archiviert") : String(localized: "„\(todos[index].title)“ wiederhergestellt"))

@@ -34,6 +34,7 @@ struct DevView: View {
     @State private var showIssuePicker = false
     @State private var issueQuery = ""
     @State private var agentDropTarget = false
+    @State private var handoffID: UUID?
     @State private var showDevArchive = false
     @State private var confirmClearDevArchive = false
     @AppStorage(DevStore.agentDoneHoursKey) private var agentDoneHours = DevStore.agentDoneHoursDefault
@@ -90,6 +91,11 @@ struct DevView: View {
                     }
                 }
             }
+        }
+        .onChange(of: dev.handoff?.id, initial: true) {
+            guard let todo = dev.handoff else { return }
+            dev.handoff = nil
+            startHandoff(todo)
         }
         .overlay(alignment: .bottom) {
             if let toast {
@@ -253,7 +259,7 @@ struct DevView: View {
                     .help("Vorhandenes offenes Issue als Agent-Aufgabe übernehmen")
                     .popover(isPresented: $showIssuePicker, arrowEdge: .bottom) { issuePicker }
                 }
-                Button { withAnimation(.island) { showAgentForm.toggle() } } label: {
+                Button { withAnimation(.island) { if showAgentForm { cancelHandoff() } else { showAgentForm = true } } } label: {
                     Label(showAgentForm ? String(localized: "Schließen") : String(localized: "Neue Aufgabe"), systemImage: showAgentForm ? "xmark" : "plus")
                         .font(.caption.weight(.semibold))
                         .padding(.horizontal, 10)
@@ -318,9 +324,27 @@ struct DevView: View {
     }
 
     private func handleAgentDrop(_ items: [String]) -> Bool {
+        if let todo = store.todos.first(where: { items.contains("todo:\($0.id.uuidString)") }) {
+            startHandoff(todo)
+            return true
+        }
         guard let issue = dev.openIssues.first(where: { items.contains("issue:\($0.id)") }), !issue.isAgent else { return false }
         handToAgent(issue)
         return true
+    }
+
+    /// Opens the agent form prefilled from a to-do (#139); nothing changes until the issue is created.
+    private func startHandoff(_ todo: Todo) {
+        guard !dev.selectedRepos.isEmpty else { return }
+        let draft = AgentIssue.draft(from: todo)
+        agentTitle = draft.title; agentTask = draft.task; agentCriteria = ""
+        handoffID = todo.id
+        withAnimation(.island) { showAgentForm = true }
+    }
+
+    private func cancelHandoff() {
+        if handoffID != nil { agentTitle = ""; agentTask = ""; agentCriteria = ""; handoffID = nil }
+        showAgentForm = false
     }
 
     private var agentForm: some View {
@@ -337,7 +361,8 @@ struct DevView: View {
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(2...5)
             HStack {
-                Text("Wird als Issue mit Label „agent“ angelegt.").font(.caption).foregroundStyle(.secondary)
+                Text(handoffID == nil ? String(localized: "Wird als Issue mit Label „agent“ angelegt.") : String(localized: "Danach wird das To-do erledigt und archiviert."))
+                    .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button(action: createAgentIssue) {
                     Group {
@@ -463,12 +488,17 @@ struct DevView: View {
     private func createAgentIssue() {
         let repo = agentRepo, title = agentTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         let body = AgentIssue.body(task: agentTask, criteria: agentCriteria)
+        let handoff = handoffID
         agentBusy = true
         Task {
             do {
-                try await dev.createAgentIssue(repo: repo, title: title, body: body)
-                agentTitle = ""; agentTask = ""; agentCriteria = ""
-                withAnimation(.island) { showAgentForm = false; toast = (String(localized: "Agent-Aufgabe angelegt"), true) }
+                let issue = try await dev.createAgentIssue(repo: repo, title: title, body: body)
+                agentTitle = ""; agentTask = ""; agentCriteria = ""; handoffID = nil
+                withAnimation(.island) {
+                    if let handoff { store.handOff(handoff, to: issue) }
+                    showAgentForm = false
+                    toast = (handoff == nil ? String(localized: "Agent-Aufgabe angelegt") : String(localized: "To-do an Agent übergeben"), true)
+                }
             } catch {
                 withAnimation(.island) { toast = (String(localized: "Anlegen fehlgeschlagen: \(error.localizedDescription)"), false) }
             }
@@ -588,6 +618,7 @@ struct DevView: View {
                 })) {
                     ForEach(Priority.allCases.reversed()) { Text($0.label).tag($0) }
                 }
+                if !item.done && !dev.selectedRepos.isEmpty { Button("An Agent übergeben …") { startHandoff(item) } }
                 Divider()
                 Button("Löschen", role: .destructive) { withAnimation(.island) { store.delete(item) } }
             } label: { Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)) }
@@ -600,6 +631,7 @@ struct DevView: View {
         .padding(.vertical, 9)
         .islandCard(stripe: color(for: item.priority))
         .opacity(item.done ? 0.55 : 1)
+        .draggable("todo:\(item.id.uuidString)")
         .transition(.asymmetric(insertion: .scale(scale: 0.6, anchor: .top).combined(with: .opacity), removal: .opacity))
     }
 
