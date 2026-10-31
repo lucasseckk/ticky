@@ -251,6 +251,22 @@ import Foundation
         corrupt.save(Todo(title: "Test"))
         let preserved = try Data(contentsOf: file)
         precondition(preserved == original)
+        // Damaged groups or priorities lock saving too, so they are never replaced by an empty list (#126).
+        try FileManager.default.removeItem(at: file)
+        for name in ["groups.json", "custom-priorities.json"] {
+            let damaged = directory.appendingPathComponent(name)
+            let before = try? Data(contentsOf: damaged)
+            try original.write(to: damaged)
+            let locked = Store(file: file)
+            precondition(locked.error?.contains(name) == true)
+            locked.save(Todo(title: "Test"))
+            locked.createGroup(name: "Neu")
+            locked.createCustomPriority(name: "Neu", threatLevel: 3)
+            let kept = try Data(contentsOf: damaged)
+            precondition(kept == original && !FileManager.default.fileExists(atPath: file.path))
+            if let before { try before.write(to: damaged) } else { try FileManager.default.removeItem(at: damaged) }
+            precondition(Store(file: file).error == nil)
+        }
         let hostile = "it's $(touch /tmp/x) `id` \"; rm -rf ~"
         let echo = Process()
         echo.executableURL = URL(fileURLWithPath: "/bin/zsh")
