@@ -106,6 +106,14 @@ import Foundation
         precondition(!Store(file: file).todos.contains { $0.id == devTodo.id })
         devStore.undo()
         devStore.delete(devTodo)
+        let issueURL = URL(string: "https://github.com/a/b/issues/20")
+        let normal = Todo(title: "Suche erweitern"), devOpen = Todo(title: "Dev", isDev: true)
+        [normal, devOpen].forEach(devStore.save)
+        [normal, devOpen].forEach { devStore.handOff($0.id, to: issueURL) }
+        let handed = Store(file: file).todos.filter { [normal.id, devOpen.id].contains($0.id) }
+        precondition(handed.count == 2 && handed.allSatisfy { $0.done && $0.link == issueURL })
+        precondition(handed.first { $0.id == normal.id }?.archived == true && handed.first { $0.id == devOpen.id }?.archived == false)
+        [normal, devOpen].forEach(devStore.delete)
         let reminders = Store(file: file)
         let remind = Todo(title: "Anrufen")
         reminders.save(remind)
@@ -257,6 +265,10 @@ import Foundation
         precondition(urgent.filter { $0.isUrgent(for: "lucas") }.allSatisfy { !agentIDs.contains($0.id) })
         precondition(!urgent[2].isUrgent(for: "max") && urgent[2].isAgent && !urgent[0].isAgent)
         precondition(urgent[0].rank == (1, 7) && urgent[1].rank == (9, 11) && urgent[2].rank == (3, 2))
+        // A to-do handed to agents (#139): title and link prefill the form, afterwards it is done, archived and linked.
+        let linkedDraft = AgentIssue.draft(from: Todo(title: "Review", isDev: true, link: URL(string: "https://github.com/a/b/pull/7")))
+        precondition(linkedDraft.title == "Review" && linkedDraft.task.contains("https://github.com/a/b/pull/7"))
+        precondition(AgentIssue.draft(from: Todo(title: "Ohne Link")).task.isEmpty)
         // Only open issues without the agent label in shown repos can be handed over (#140).
         let offerable = UrgentIssue.offerable(urgent, in: ["a/b"])
         precondition(offerable.allSatisfy { !$0.isAgent && $0.repo == "a/b" } && offerable.count == urgent.filter { !$0.isAgent }.count)

@@ -196,6 +196,11 @@ struct AgentIssue: Identifiable, Equatable, Sendable {
         }
         return text + "\n---\n_Angelegt über Ticky für Coding-Agents (Label `\(label)`). Vorgehen siehe AGENTS.md._\n"
     }
+
+    /// Prefilled form for handing a to-do to agents (#139): its title, and its link in the description.
+    static func draft(from todo: Todo) -> (title: String, task: String) {
+        (todo.title, todo.link.map { "Link: \($0.absoluteString)\n\n" } ?? "")
+    }
 }
 
 /// An open issue that needs attention soon (#26).
@@ -343,6 +348,8 @@ struct RepoSnapshot: Sendable {
     /// Repositories whose pull requests could not be loaded in the last refresh.
     @Published private(set) var failedRepos: [String] = []
     @Published private(set) var agentIssues: [AgentIssue] = []
+    /// A to-do from the main list waiting to be handed to agents in the Dev area (#139).
+    @Published var handoff: Todo?
     @Published private(set) var openIssues: [UrgentIssue] = []
 
     private let defaults: UserDefaults
@@ -444,12 +451,14 @@ struct RepoSnapshot: Sendable {
             .sorted { ($0.closed ?? $0.created) > ($1.closed ?? $1.created) }
     }
 
-    func createAgentIssue(repo: String, title: String, body: String) async throws {
+    /// Returns the new issue's address, which `gh issue create` prints.
+    @discardableResult func createAgentIssue(repo: String, title: String, body: String) async throws -> URL? {
         guard let cli = locate() else { throw GitHubError.missingCLI }
         // --force creates the label or leaves an existing one usable.
         _ = try await cli.run(["label", "create", AgentIssue.label, "-R", repo, "--color", "0E8A16", "--description", "Kann von einem Coding-Agent selbstständig abgearbeitet werden", "--force"])
-        _ = try await cli.run(["issue", "create", "-R", repo, "--title", title, "--body", body, "--label", AgentIssue.label])
+        let output = try await cli.run(["issue", "create", "-R", repo, "--title", title, "--body", body, "--label", AgentIssue.label])
         await loadRepos(cli)
+        return nonEmptyLines(output).last.flatMap(URL.init(string:))
     }
 
     func setInProgress(_ issue: AgentIssue, _ inProgress: Bool) async throws {
