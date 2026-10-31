@@ -40,6 +40,7 @@ struct Panel: View {
     @FocusState private var searchFocused: Bool
     /// Remembered, so the panel reopens where it was left (#16).
     @AppStorage("showSettings") private var showSettings = false
+    @ObservedObject private var reminders = NotificationManager.shared
     @State private var draft: Todo?
     @State private var draftIsNew = false
     @State private var hoveredGroupID: UUID?
@@ -157,6 +158,7 @@ struct Panel: View {
                 .help("Neues To-Do (⌘N)")
             }
             if let error = store.error { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled) }
+            if let problem = reminders.plan.problem { Label(problem, systemImage: "bell.slash").font(.caption).foregroundStyle(.red).textSelection(.enabled) }
             if let todo = draft {
                 ScrollView {
                     Editor(todo: todo, isNew: draftIsNew, groups: store.groups, customPriorities: store.customPriorities, onSave: saveDraft, onCancel: { withAnimation(.island) { draft = nil } }).id(todo.id)

@@ -253,6 +253,15 @@ import Foundation
         precondition(urgent.map { $0.isUrgent(for: "lucas") } == [true, true, true, false])
         precondition(!urgent[2].isUrgent(for: "max") && urgent[2].isAgent && !urgent[0].isAgent)
         precondition(urgent[0].rank == (1, 7) && urgent[1].rank == (9, 11) && urgent[2].rank == (3, 2))
+        // Reminders (#129): only the soonest are scheduled, failures and skipped ones stay visible.
+        let base = Date(timeIntervalSince1970: 2000000000)
+        let soonest = ReminderPlan.soonest([("c", base + 30), ("x", nil), ("a", base + 10), ("b", base + 20)], limit: 2)
+        precondition(soonest.chosen == ["a", "b"] && soonest.skipped == 2)
+        precondition(ReminderPlan.soonest([("a", base)]).skipped == 0)
+        precondition(ReminderPlan().problem == nil && ReminderPlan().summary == nil)
+        let failed = ReminderPlan(planned: 3, skipped: 0, failures: ["Zu viele", "Zu viele"])
+        precondition(failed.problem?.contains("2 von 5") == true && failed.problem?.contains("Zu viele") == true)
+        precondition(ReminderPlan(planned: 60, skipped: 7).summary?.contains("7") == true && ReminderPlan(planned: 4).problem == nil)
         let original = Data("unlesbare Daten".utf8)
         try original.write(to: file)
         let corrupt = Store(file: file)
@@ -286,6 +295,6 @@ import Foundation
         echo.waitUntilExit()
         precondition(String(decoding: quotedOut.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self) == hostile)
         precondition(ClaudeScript.make(folder: "/a b", promptFile: "/p").contains("cd '/a b' || exit 1"))
-        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Snooze, Wiederholungen, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Claude-Start, Löschen, Schutz beschädigter Daten")
+        print("OK: Speichern, Laden, Priorität, Fälligkeit, Abhaken, Gruppen verschieben, Suche/Filter, Reihenfolge, Rückgängig, Snooze, Wiederholungen, Zeitbereiche, Archiv, Export/Import, Dateirechte, GitHub-CLI, Pull Requests, Agent-Aufgaben, Dringende Issues, Dev-To-dos, Claude-Start, Löschen, Schutz beschädigter Daten, Erinnerungsplan")
     }
 }
