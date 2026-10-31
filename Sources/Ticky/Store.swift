@@ -470,6 +470,9 @@ struct UndoStep: Identifiable {
         let safety = directory.appendingPathComponent("vor-import-\(stamp).json")
         try writePrivately(exportData(), to: safety)
         let groupIDs = Set(backup.groups.map(\.id)), priorityIDs = Set(backup.customPriorities.map(\.id))
+        let previous = (todos: todos, groups: groups, customPriorities: customPriorities, undoStep: undoStep)
+        let files = [file, groupsFile, prioritiesFile]
+        let originals = files.map { (exists: FileManager.default.fileExists(atPath: $0.path), data: try? Data(contentsOf: $0)) }
         recordUndo(String(localized: "Sicherung importiert"))
         todos = backup.todos.map { todo in
             var todo = todo
@@ -479,7 +482,20 @@ struct UndoStep: Identifiable {
         }
         groups = backup.groups
         customPriorities = backup.customPriorities
-        persist(); persistGroups(); persistPriorities()
+        do {
+            try writePrivately(JSONEncoder().encode(todos), to: file)
+            try writePrivately(JSONEncoder().encode(groups), to: groupsFile)
+            try writePrivately(JSONEncoder().encode(customPriorities), to: prioritiesFile)
+        } catch let writeError {
+            // All or nothing (#127): memory and every file go back to the state before the import.
+            (todos, groups, customPriorities, undoStep) = previous
+            for (url, original) in zip(files, originals) {
+                if let data = original.data { try? writePrivately(data, to: url) }
+                else if !original.exists { try? FileManager.default.removeItem(at: url) }
+            }
+            throw writeError
+        }
+        error = nil
         return safety
     }
     func undo() {

@@ -149,6 +149,15 @@ import Foundation
         target.save(Todo(title: "Alt"))
         do { try target.importData(Data("{}".utf8)); preconditionFailure("ungültige Datei importiert") } catch {}
         precondition(Store(file: directory.appendingPathComponent("ziel/todos.json")).todos.map(\.title) == ["Alt"])
+        // A failing second file rolls back the first one and the memory state (#127).
+        let blocked = directory.appendingPathComponent("ziel/groups.json")
+        try FileManager.default.createDirectory(at: blocked, withIntermediateDirectories: true)
+        do { try target.importData(exported); preconditionFailure("Import trotz Schreibfehler gemeldet") } catch {}
+        precondition(target.todos.map(\.title) == ["Alt"] && target.groups.isEmpty && target.customPriorities.isEmpty)
+        try FileManager.default.removeItem(at: blocked)
+        let rolledBack = Store(file: directory.appendingPathComponent("ziel/todos.json"))
+        precondition(rolledBack.todos.map(\.title) == ["Alt"] && rolledBack.groups.isEmpty && rolledBack.customPriorities.isEmpty)
+        precondition(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("ziel/custom-priorities.json").path))
         let safety = try target.importData(exported)
         let saved = try BackupFile.decoder().decode(BackupFile.self, from: Data(contentsOf: safety))
         precondition(permissions(safety) == 0o600)
