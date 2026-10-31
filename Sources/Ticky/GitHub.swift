@@ -224,6 +224,12 @@ struct UrgentIssue: Identifiable, Equatable, Sendable {
         return title.hasPrefix("[P1") || labels.contains { ["dringend", "p1"].contains($0.lowercased()) }
             || (login.map(assignees.contains) ?? false)
     }
+
+    /// Open issues that can still be handed to agents (#140): in a shown repo and not yet labelled `agent`.
+    static func offerable(_ issues: [UrgentIssue], in repos: [String]) -> [UrgentIssue] {
+        issues.filter { repos.contains($0.repo) && !$0.isAgent }
+            .sorted { $0.rank != $1.rank ? $0.rank < $1.rank : $0.repo < $1.repo }
+    }
 }
 
 struct Nodes<Element: Decodable>: Decodable { let nodes: [Element] }
@@ -465,6 +471,8 @@ struct RepoSnapshot: Sendable {
         openIssues.filter { selectedRepos.contains($0.repo) && $0.isUrgent(for: login) }
             .sorted { $0.rank != $1.rank ? $0.rank < $1.rank : $0.repo < $1.repo }
     }
+
+    var offerableIssues: [UrgentIssue] { UrgentIssue.offerable(openIssues, in: selectedRepos) }
 
     /// Hands an existing issue to coding agents by adding the `agent` label (#27).
     func markAsAgent(_ issue: UrgentIssue) async throws {

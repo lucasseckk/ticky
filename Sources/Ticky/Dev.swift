@@ -31,6 +31,9 @@ struct DevView: View {
     @State private var agentCriteria = ""
     @State private var agentBusy = false
     @State private var urgentRepo: String?
+    @State private var showIssuePicker = false
+    @State private var issueQuery = ""
+    @State private var agentDropTarget = false
     @State private var showDevArchive = false
     @State private var confirmClearDevArchive = false
     @AppStorage(DevStore.agentDoneHoursKey) private var agentDoneHours = DevStore.agentDoneHoursDefault
@@ -212,12 +215,7 @@ struct DevView: View {
                     withAnimation(.island) { toast = (String(localized: "Als Dev-To-do gespeichert"), true) }
                 }
                 .disabled(linked)
-                Button("An Agent übergeben (Label „agent“)") {
-                    runAgentAction {
-                        try await dev.markAsAgent(issue)
-                        withAnimation(.island) { toast = (String(localized: "#\(issue.number) ist jetzt eine Agent-Aufgabe"), true) }
-                    }
-                }
+                Button("An Agent übergeben (Label „agent“)") { handToAgent(issue) }
             } label: { Image(systemName: "ellipsis").font(.system(size: 12, weight: .bold)) }
             .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
             .frame(width: 28, height: 28)
@@ -228,38 +226,101 @@ struct DevView: View {
         .padding(.vertical, 10)
         .islandCard(stripe: issue.rank.priority <= 1 ? .red : .orange)
         .contentShape(RoundedRectangle(cornerRadius: 16))
+        .draggable("issue:\(issue.id)")
         .onTapGesture { NSWorkspace.shared.open(issue.url) }
         .help("Issue im Browser öffnen")
     }
 
     // MARK: Agent-Aufgaben (#27): GitHub-Issues mit Label `agent`, lesbar für Coding-Agents
 
-    @ViewBuilder private var agentSection: some View {
+    /// Also a drop target: urgent issues dragged here become agent issues (#140).
+    private var agentSection: some View {
         let issues = dev.visibleAgentIssues(hours: agentDoneHours)
-        HStack(spacing: 6) {
-            Label("Agent-Aufgaben", systemImage: "cpu").font(.headline)
-            Text("\(issues.filter { $0.status != .done }.count)").font(.caption).foregroundStyle(.secondary)
-            Spacer()
-            Button { withAnimation(.island) { showAgentForm.toggle() } } label: {
-                Label(showAgentForm ? String(localized: "Schließen") : String(localized: "Neue Aufgabe"), systemImage: showAgentForm ? "xmark" : "plus")
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .islandCapsule()
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Label("Agent-Aufgaben", systemImage: "cpu").font(.headline)
+                Text("\(issues.filter { $0.status != .done }.count)").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if !dev.offerableIssues.isEmpty {
+                    Button { issueQuery = ""; showIssuePicker = true } label: {
+                        Image(systemName: "tray.and.arrow.down")
+                            .font(.caption.weight(.semibold))
+                            .frame(width: 26, height: 26)
+                            .islandCapsule()
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Issue hinzufügen")
+                    .help("Vorhandenes offenes Issue als Agent-Aufgabe übernehmen")
+                    .popover(isPresented: $showIssuePicker, arrowEdge: .bottom) { issuePicker }
+                }
+                Button { withAnimation(.island) { showAgentForm.toggle() } } label: {
+                    Label(showAgentForm ? String(localized: "Schließen") : String(localized: "Neue Aufgabe"), systemImage: showAgentForm ? "xmark" : "plus")
+                        .font(.caption.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .islandCapsule()
+                }
+                .buttonStyle(.plain)
+                .disabled(dev.selectedRepos.isEmpty)
+                .help("Legt ein GitHub-Issue mit Label „agent“ an, das Coding-Agents finden und abarbeiten können")
             }
-            .buttonStyle(.plain)
-            .disabled(dev.selectedRepos.isEmpty)
-            .help("Legt ein GitHub-Issue mit Label „agent“ an, das Coding-Agents finden und abarbeiten können")
+            .padding(.horizontal, 4)
+            if showAgentForm { agentForm }
+            if issues.isEmpty && !showAgentForm {
+                Text("Noch keine Issues mit Label „agent“. Agents finden sie mit `gh issue list --label agent`.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+            }
+            byRepo("agent", issues, repo: \.repo) { issue in agentCard(issue) }
         }
-        .padding(.horizontal, 4)
-        if showAgentForm { agentForm }
-        if issues.isEmpty && !showAgentForm {
-            Text("Noch keine Issues mit Label „agent“. Agents finden sie mit `gh issue list --label agent`.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
+        .padding(4)
+        .background(RoundedRectangle(cornerRadius: 18).strokeBorder(Color.white.opacity(agentDropTarget ? 0.6 : 0), lineWidth: 1.5))
+        .padding(-4)
+        .dropDestination(for: String.self) { items, _ in handleAgentDrop(items) } isTargeted: { agentDropTarget = $0 }
+    }
+
+    /// Search over the loaded open issues that are not agent issues yet (#140).
+    private var issuePicker: some View {
+        let query = issueQuery.trimmingCharacters(in: .whitespaces)
+        let issues = dev.offerableIssues.filter { query.isEmpty || $0.title.localizedCaseInsensitiveContains(query) || "#\($0.number)".contains(query) }
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Issue an Agent übergeben").font(.headline)
+            TextField("Suchen", text: $issueQuery).textFieldStyle(.roundedBorder)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(issues) { issue in
+                        Button { showIssuePicker = false; handToAgent(issue) } label: {
+                            HStack(spacing: 8) {
+                                Text(issue.title).lineLimit(1)
+                                Spacer(minLength: 8)
+                                Text("\(repoName(issue.repo)) #\(issue.number)").font(.caption).foregroundStyle(.secondary)
+                            }
+                            .padding(.vertical, 5)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if issues.isEmpty { Text("Keine passenden Issues.").font(.caption).foregroundStyle(.secondary) }
+                }
+            }
+            .frame(height: 240)
         }
-        byRepo("agent", issues, repo: \.repo) { issue in agentCard(issue) }
+        .padding(16)
+        .frame(width: 360)
+    }
+
+    private func handToAgent(_ issue: UrgentIssue) {
+        runAgentAction {
+            try await dev.markAsAgent(issue)
+            withAnimation(.island) { toast = (String(localized: "#\(issue.number) ist jetzt eine Agent-Aufgabe"), true) }
+        }
+    }
+
+    private func handleAgentDrop(_ items: [String]) -> Bool {
+        guard let issue = dev.openIssues.first(where: { items.contains("issue:\($0.id)") }), !issue.isAgent else { return false }
+        handToAgent(issue)
+        return true
     }
 
     private var agentForm: some View {

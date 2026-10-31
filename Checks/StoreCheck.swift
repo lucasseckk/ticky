@@ -257,6 +257,10 @@ import Foundation
         precondition(urgent.filter { $0.isUrgent(for: "lucas") }.allSatisfy { !agentIDs.contains($0.id) })
         precondition(!urgent[2].isUrgent(for: "max") && urgent[2].isAgent && !urgent[0].isAgent)
         precondition(urgent[0].rank == (1, 7) && urgent[1].rank == (9, 11) && urgent[2].rank == (3, 2))
+        // Only open issues without the agent label in shown repos can be handed over (#140).
+        let offerable = UrgentIssue.offerable(urgent, in: ["a/b"])
+        precondition(offerable.allSatisfy { !$0.isAgent && $0.repo == "a/b" } && offerable.count == urgent.filter { !$0.isAgent }.count)
+        precondition(offerable.map(\.number) == [10, 13, 11] && UrgentIssue.offerable(urgent, in: []).isEmpty)
         // Reminders (#129): only the soonest are scheduled, failures and skipped ones stay visible.
         let base = Date(timeIntervalSince1970: 2000000000)
         let soonest = ReminderPlan.soonest([("c", base + 30), ("x", nil), ("a", base + 10), ("b", base + 20)], limit: 2)
